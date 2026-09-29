@@ -1,0 +1,52 @@
+# Bygger appen och publicerar den på GitHub Pages vid varje push till main.
+# Kräver att Settings → Pages → Source är satt till "GitHub Actions".
+name: Publicera på GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Gör det möjligt att köra arbetsflödet manuellt från fliken Actions.
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Endast en publicering åt gången; en pågående publicering avbryts inte.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Publicera bara om koden håller: kodanalys och tester före bygget.
+      - run: npm run lint
+      - run: npm test
+
+      # Typkontroll + produktionsbygge till dist/.
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,573 @@
+DATABASSCHEMA – BUDGET & RESURSPLANERING (ORACLE)
+==================================================
+
+Lösningsförslag, ej implementerat. Datum: 2026-09-29.
+Underlag: kravspecifikationen i claude.md och appens nuvarande datamodell (src/domain/types.ts).
+Hänvisningar som "(3.4)" avser avsnitt i claude.md.
+
+
+INNEHÅLL
+  1.  Sammanfattning
+  2.  Förutsättningar och designval
+  3.  Översikt (ER-diagram)
+  4.  Tabeller
+  5.  Affärsregler: vad databasen garanterar och vad backend ansvarar för
+  6.  Beräknade värden och vyer
+  7.  Index
+  8.  Samtidig redigering
+  9.  Koppling till appens JSON-format (export och import)
+  10. Övergång från localStorage
+  11. Övervägda alternativ
+  12. Öppna frågor
+
+
+1. SAMMANFATTNING
+-----------------
+
+- Relationell, normaliserad modell med nio tabeller som speglar datamodellen i claude.md:
+    - två uppslagstabeller: PERSON_TYPE och TAJMA_CLASS
+    - fyra tabeller för stamdata: SECTION, PERSON, PRODUCT_OWNER och INITIATIVE
+    - två kopplingstabeller: INITIATIVE_YEAR och INITIATIVE_PERSON
+    - en tabell för tid: TIME_ENTRY.
+- Estimat och utfall lagras på samma rad, en rad per initiativ, person, år och månad. Ett utfall
+  utan värde (NULL) betyder "ej rapporterat", vilket skiljer sig från rapporterade 0 timmar.
+- Databasens främmande nycklar upprätthåller de flesta reglerna i kravspecen. Till exempel kan en
+  sektion med innehåll eller en produktägare med initiativ inte raderas, och estimat och utfall
+  försvinner automatiskt när en person eller ett år kopplas bort från ett initiativ.
+- Kostnader, budgetandelar, avvikelser och överallokering lagras inte utan beräknas i vyer. Skälet
+  är att en ändrad timkostnad ska räkna om även historiskt utfall (5.1).
+- Appens JSON-format för export och import behålls, så att befintliga exportfiler kan läsas in i
+  databasen.
+
+
+2. FÖRUTSÄTTNINGAR OCH DESIGNVAL
+--------------------------------
+
+Databasversion
+  Oracle Database 19c eller senare. Schemat använder bara standardfunktioner och fungerar
+  oförändrat i 23ai.
+
+Teckenuppsättning
+  AL32UTF8 (Unicode), så att å, ä, ö och andra tecken lagras korrekt. Textlängder anges i tecken
+  (CHAR-semantik) och inte i byte, så att 200 tecken är 200 tecken även med å, ä och ö.
+
+Namngivning
+  - Tabeller och kolumner har engelska namn i versaler med understreck och samma begrepp som
+    appens källkod (Section, Person, ProductOwner, Initiative). Kopplingen mellan kod och databas
+    blir då självklar, och å, ä och ö undviks i namnen.
+  - Ord som Oracle använder som nyckelord (t.ex. YEAR och MONTH) används inte som kolumnnamn.
+    Kolumnerna heter i stället CALENDAR_YEAR och CALENDAR_MONTH.
+  - Constraints och index får namn efter mönstret:
+        PK_<tabell>                        primärnyckel
+        FK_<tabell>_<refererad tabell>     främmande nyckel
+        CK_<tabell>_<kolumn>               kontrollvillkor
+        UQ_<tabell>_<kolumn>               unikt värde
+        IX_<tabell>_<kolumner>             index
+    Namnet står med i Oracles felmeddelanden, så backend kan översätta ett fel till en begriplig
+    svensk text.
+
+Primärnycklar
+  Id:n är text, VARCHAR2(64 CHAR), i stället för löpnummer. Skälen är:
+  - Appen skapar redan id:n (UUID), och de följer med i JSON-exporten.
+  - Äldre data har id:n som inte är UUID, t.ex. "standardsektion".
+  - Med samma id:n i databasen kan en exportfil importeras oförändrad, och id:n är stabila mellan
+    export och import.
+  Nya id:n är UUID. De skapas av backend eller, som i dag, av webbläsaren.
+
+Datatyper för tal
+  Timmar per månad och arbetstid   NUMBER(6,2)    upp till 9 999,99 h, två decimaler
+  Timkostnad                       NUMBER(10,2)   SEK/h, två decimaler (öre)
+  Budget                           NUMBER(15,2)   SEK, två decimaler (öre)
+  År                               NUMBER(4)
+  Månad                            NUMBER(2)      1–12
+
+  Observera: appen accepterar i dag hur många decimaler som helst. Oracle avrundar utan varning
+  till kolumnens antal decimaler, så appen och databasen skulle kunna visa olika värden.
+  Rekommendation: begränsa inmatningen till två decimaler i gränssnittet och låt backend avvisa
+  värden med fler.
+
+Datamängd
+  Datamängden är liten (6). Med till exempel 50 initiativ som har i snitt 4 personer under 2 år
+  blir det högst 50 × 4 × 2 × 12 = 4 800 rader i TIME_ENTRY. Partitionering, komprimering och
+  liknande behövs inte.
+
+Spårbarhet
+  Stamdatatabellerna har kolumnerna CREATED_AT och UPDATED_AT. Vem som gjorde ändringen lagras
+  inte, eftersom appen saknar inloggning (6). Se även avsnitt 12.
+
+Behörighet
+  Tabellerna ägs av ett schema (t.ex. EKONOMI) som inte används i drift. Backend ansluter som en
+  separat användare (t.ex. EKONOMI_APP) som bara får läsa, lägga till, ändra och radera rader,
+  men inte ändra tabellstrukturen. Appens användare loggar inte in, men databasens
+  inloggningsuppgifter finns bara i backend och aldrig i webbläsaren.
+
+
+3. ÖVERSIKT (ER-DIAGRAM)
+------------------------
+
+  Förklaring:  1 ---- *  = en till många      0..1 = frivillig koppling
+
+                                 SECTION
+                              1 /       \ 1
+                               /         \
+                            * /           \ *
+  PERSON_TYPE 1 -------- * PERSON      PRODUCT_OWNER
+                              | 1            | 1
+                              |              |
+                              |              | *
+                              |          INITIATIVE * -------- 0..1 TAJMA_CLASS
+                              |           1 /    \ 1
+                              |            /      \
+                              | *       * /        \ *
+                          INITIATIVE_PERSON      INITIATIVE_YEAR
+                              | 1                     | 1
+                              |                       |
+                              | *                     | *
+                              +------ TIME_ENTRY -----+
+
+  - Ett initiativ har ingen egen koppling till en sektion. Sektionen följer av produktägaren:
+    INITIATIVE → PRODUCT_OWNER → SECTION.
+  - TIME_ENTRY hänger på både INITIATIVE_PERSON och INITIATIVE_YEAR. Tid kan därför bara finnas
+    för en person som är kopplad till initiativet, och bara för något av initiativets år.
+
+
+4. TABELLER
+-----------
+
+4.0 Gemensamma kolumner och regler
+
+  Stamdatatabellerna (PERSON_TYPE, SECTION, PERSON, PRODUCT_OWNER och INITIATIVE) har även:
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  CREATED_AT        TIMESTAMP WITH TIME ZONE  Nej   När raden skapades. Standard: aktuell tid.
+  UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring. Sätts av backend.
+  ROW_VERSION       NUMBER(10)                Nej   Versionsnummer för optimistisk låsning.
+                                                    Börjar på 1 och räknas upp vid varje
+                                                    ändring (avsnitt 8).
+
+  Namnkolumner (NAME) är VARCHAR2(200 CHAR) och obligatoriska, med ett kontrollvillkor om att
+  namnet inte får bestå av enbart blanksteg. I Oracle är en tom sträng detsamma som NULL, så
+  kravet att kolumnen inte får vara NULL stoppar även tomma namn. Backend tar bort inledande och
+  avslutande blanksteg innan namnet sparas, precis som appen gör i dag. Namn behöver inte vara
+  unika (se avsnitt 12).
+
+
+4.1 PERSON_TYPE – personaltyp och globala standardvärden (2.2, 3.2)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  CODE              VARCHAR2(20 CHAR)         Nej   Primärnyckel: 'employee' eller 'consultant',
+                                                    samma koder som i appen och JSON-filen.
+  LABEL             VARCHAR2(50 CHAR)         Nej   Visningsnamn: 'Anställd' eller 'Konsult'.
+  HOURLY_RATE       NUMBER(10,2)              Nej   Standardtimkostnad i SEK/h. Minst 0.
+  MONTHLY_HOURS     NUMBER(6,2)               Nej   Normal arbetstid i timmar per månad. Minst 0.
+  + gemensamma kolumner
+
+  Tabellen har exakt två rader, som skapas vid installationen med appens standardvärden:
+  Anställd 650 kr/h och 160 h/mån, Konsult 1 100 kr/h och 160 h/mån. Backend tillåter bara att
+  värdena ändras, inte att typer läggs till eller tas bort.
+
+  Motivering: den globala inställningen per typ (3.2) är en egenskap hos typen. Samma tabell
+  fungerar som uppslagstabell, så att en person bara kan få en giltig typ.
+
+
+4.2 TAJMA_CLASS – tillåtna tajmaklasser (2.4)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  CODE              VARCHAR2(30 CHAR)         Nej   Primärnyckel: 'IMM', 'Vidareutveckling' eller
+                                                    'Drift'.
+  SORT_ORDER        NUMBER(3)                 Nej   Ordning i listor: 1, 2, 3. Unik.
+
+  Tabellen har tre rader, som skapas vid installationen. Tomt värde har ingen egen rad utan lagras
+  som NULL i INITIATIVE.TAJMA_CLASS.
+
+  Motivering: med en uppslagstabell i stället för ett kontrollvillkor kan en ny klass läggas till
+  som en rad, utan att tabellstrukturen ändras. Gränssnittet har i dag en fast lista, som då också
+  måste uppdateras eller hämtas från backend.
+
+
+4.3 SECTION – sektion (2.1, 3.1)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
+  NAME              VARCHAR2(200 CHAR)        Nej   Sektionens namn.
+  + gemensamma kolumner
+
+
+4.4 PERSON – personal (2.2, 3.2)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
+  NAME              VARCHAR2(200 CHAR)        Nej   Namn.
+  PERSON_TYPE       VARCHAR2(20 CHAR)         Nej   Främmande nyckel till PERSON_TYPE.CODE.
+  SECTION_ID        VARCHAR2(64 CHAR)         Nej   Hemsektion. Främmande nyckel till SECTION.ID,
+                                                    utan kaskad.
+  HOURLY_RATE       NUMBER(10,2)              Ja    Egen timkostnad i SEK/h. NULL betyder att
+                                                    typens standardvärde gäller. Minst 0.
+  MONTHLY_HOURS     NUMBER(6,2)               Ja    Egen arbetstid i h/mån. NULL betyder att
+                                                    typens standardvärde gäller. Minst 0.
+  + gemensamma kolumner
+
+  Den timkostnad och arbetstid som gäller för personen (eget värde, annars typens) beräknas i en
+  vy (avsnitt 6) och lagras inte. Ändras typens standardvärde gäller det direkt för alla personer
+  som saknar eget värde.
+
+
+4.5 PRODUCT_OWNER – produktägare (2.3, 3.3)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
+  NAME              VARCHAR2(200 CHAR)        Nej   Namn.
+  SECTION_ID        VARCHAR2(64 CHAR)         Nej   Främmande nyckel till SECTION.ID, utan kaskad.
+  + gemensamma kolumner
+
+
+4.6 INITIATIVE – initiativ (2.4, 3.4)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
+  NAME              VARCHAR2(200 CHAR)        Nej   Namn.
+  PRODUCT_OWNER_ID  VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PRODUCT_OWNER.ID, utan
+                                                    kaskad.
+  BUDGET            NUMBER(15,2)              Ja    Totalbudget i SEK för initiativets alla år.
+                                                    NULL = ingen budget. Större än 0 om angiven.
+  TAJMA_CLASS       VARCHAR2(30 CHAR)         Ja    Främmande nyckel till TAJMA_CLASS.CODE.
+                                                    NULL = tomt värde.
+  + gemensamma kolumner
+
+  Initiativet har medvetet ingen egen kolumn för sektion. Sektionen hämtas via produktägaren.
+  Därmed kan regeln att ett initiativ alltid tillhör produktägarens sektion aldrig brytas. När en
+  produktägare byter sektion följer initiativen med automatiskt (3.3), utan att någon rad ändras.
+
+
+4.7 INITIATIVE_YEAR – initiativets år (2.4)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till INITIATIVE.ID, med
+                                                    kaskad.
+  CALENDAR_YEAR     NUMBER(4)                 Nej   Kalenderår 1900–2200, samma gränser som appen.
+
+  Primärnyckeln är (INITIATIVE_ID, CALENDAR_YEAR), så samma år kan inte anges två gånger.
+
+
+4.8 INITIATIVE_PERSON – personal kopplad till initiativ (2.4, 3.4)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till INITIATIVE.ID, med
+                                                    kaskad.
+  PERSON_ID         VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PERSON.ID, med kaskad.
+
+  Primärnyckeln är (INITIATIVE_ID, PERSON_ID), så en person kan inte kopplas två gånger till
+  samma initiativ. Att en person är inlånad, dvs. att hemsektionen skiljer sig från initiativets
+  sektion, beräknas och lagras inte.
+
+
+4.9 TIME_ENTRY – estimat och utfall (2.5, 2.6)
+
+  Kolumn            Datatyp                   Null  Beskrivning
+  ----------------  ------------------------  ----  ------------------------------------------------
+  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Initiativ.
+  PERSON_ID         VARCHAR2(64 CHAR)         Nej   Person.
+  CALENDAR_YEAR     NUMBER(4)                 Nej   År.
+  CALENDAR_MONTH    NUMBER(2)                 Nej   Månad 1–12, där 1 = januari. Appen använder
+                                                    0–11 internt, och backend räknar om.
+  ESTIMATED_HOURS   NUMBER(6,2)               Nej   Estimat (planerad tid). Standard 0. Minst 0.
+  ACTUAL_HOURS      NUMBER(6,2)               Ja    Utfall (faktisk tid). NULL = ej rapporterat,
+                                                    0 = rapporterade 0 timmar. Minst 0.
+  UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring.
+
+  Primärnyckeln är (INITIATIVE_ID, PERSON_ID, CALENDAR_YEAR, CALENDAR_MONTH).
+  Tabellen har två främmande nycklar, båda med kaskad:
+    (INITIATIVE_ID, PERSON_ID)      → INITIATIVE_PERSON
+    (INITIATIVE_ID, CALENDAR_YEAR)  → INITIATIVE_YEAR
+
+  Glesa rader: en rad finns bara för månader som har ett estimat över 0 eller ett rapporterat
+  utfall. En saknad rad betyder 0 timmar estimat och inget rapporterat utfall, vilket är samma
+  tolkning som appen gör i dag. När både estimat och utfall tas bort (estimat 0 och utfall NULL)
+  kan backend radera raden, men en kvarlämnad rad gör ingen skada.
+
+  Exempel för Anna i initiativet Kundportal 2.0 år 2026:
+
+    CALENDAR_MONTH  ESTIMATED_HOURS  ACTUAL_HOURS  Betydelse
+    1               100              92            Planerat 100 h, rapporterat 92 h.
+    2               80               0             Planerat 80 h, rapporterat 0 h.
+    3               80               NULL          Planerat 80 h, utfall ej rapporterat.
+    4               (ingen rad)                    Inget planerat och inget rapporterat.
+
+
+5. AFFÄRSREGLER
+---------------
+
+5.1 Regler som databasen garanterar
+
+  1. Personal och produktägare tillhör exakt en sektion (5.3).
+     → SECTION_ID är obligatorisk och en främmande nyckel.
+  2. Ett initiativ har exakt en produktägare (5.3).
+     → PRODUCT_OWNER_ID är obligatorisk och en främmande nyckel.
+  3. Ett initiativ tillhör produktägarens sektion (2.4).
+     → Följer av strukturen: initiativet har ingen egen kolumn för sektion.
+  4. En sektion med personal eller produktägare kan inte raderas (3.1).
+     → Främmande nycklar utan kaskad. Oracle avvisar raderingen med felet ORA-02292.
+  5. En produktägare med initiativ kan inte raderas (3.3).
+     → Främmande nyckel utan kaskad.
+  6. Ett initiativ kan raderas oavsett innehåll (3.4).
+     → Kaskad: initiativets år och kopplad personal raderas och därmed all tid.
+  7. När en person raderas försvinner personens kopplingar, estimat och utfall (3.4).
+     → Kaskad från PERSON via INITIATIVE_PERSON till TIME_ENTRY.
+  8. När en person eller ett år tas bort från ett initiativ raderas estimat och utfall (3.4).
+     → Kaskad från INITIATIVE_PERSON respektive INITIATIVE_YEAR till TIME_ENTRY.
+  9. Tid kan bara registreras för en person som är kopplad till initiativet och för något av
+     initiativets år (2.6).
+     → TIME_ENTRY:s två sammansatta främmande nycklar.
+  10. En person kopplas högst en gång per initiativ, och ett år anges högst en gång.
+     → Primärnycklarna i INITIATIVE_PERSON och INITIATIVE_YEAR.
+  11. Följande värden kontrolleras (2.2–2.6):
+      - timmar, timkostnad och arbetstid är minst 0
+      - budget är större än 0
+      - år ligger mellan 1900 och 2200 och månad mellan 1 och 12
+      - typ och tajmaklass har giltiga värden.
+     → Kontrollvillkor och främmande nycklar.
+  12. Namn får inte vara tomma.
+     → Obligatorisk kolumn och kontrollvillkor.
+  13. Ett ej rapporterat utfall skiljer sig från rapporterade 0 timmar (2.6).
+     → ACTUAL_HOURS är NULL respektive 0.
+
+5.2 Regler som backend ansvarar för
+
+  Följande regler kan inte uttryckas som constraints i databasen, eftersom de gäller antalet rader
+  i en annan tabell eller en jämförelse mellan värdet före och efter en ändring.
+
+  - Ett initiativ måste gälla minst ett år (2.4). Backend kontrollerar det i samma transaktion som
+    initiativet och dess år sparas.
+  - Ett nytt initiativ måste ha minst en person kopplad. Ett befintligt initiativ får däremot sakna
+    personal (5.3).
+  - Ett befintligt initiativ får bara byta till en produktägare i samma sektion (3.4).
+  - Raderingar som databasen avvisar (regel 4 och 5 ovan) kontrolleras av backend i förväg. Backend
+    skickar då med listan över berörd personal, berörda produktägare eller initiativ, så att
+    gränssnittet kan visa den som i dag. Databasens constraint skyddar om kontrollen skulle missas.
+  - Bekräftelsedialogen visar hur många timmar estimat och utfall som försvinner (3.4). Siffrorna
+    räknas fram genom att summera i TIME_ENTRY före raderingen.
+  - Att flytta allt innehåll från en sektion till en annan (3.1) görs i en transaktion.
+
+  Rekommendation: lägg dessa regler i backendens domänlager och inte i triggers, så att varje
+  regel finns på ett ställe. Skrivs backend i TypeScript (Node.js) kan appens befintliga domänlager
+  (src/domain) återanvändas för valideringen.
+
+
+6. BERÄKNADE VÄRDEN OCH VYER
+----------------------------
+
+Följande lagras inte utan beräknas när data läses:
+  - den timkostnad och arbetstid som gäller för varje person (eget värde, annars typens)
+  - estimerad kostnad (prognos) och utfallskostnad
+  - andel av budgeten för prognos och utfall
+  - avvikelse: utfall minus estimat, bara för månader med rapporterat utfall
+  - överallokering
+  - initiativets sektion och om en person är inlånad.
+
+Skälet är att timkostnaden alltid är den aktuella. Ändras den ska även historiskt utfall räknas om
+(5.1). Lagrade kostnader skulle behöva uppdateras i många rader vid varje ändring och riskera att
+bli inaktuella. Datamängden är liten, så beräkningarna går snabbt.
+
+Förslag på vyer (skrivskyddade). De kan användas av backend, till CSV-exporten och till framtida
+rapporter, t.ex. i Excel eller Power BI direkt mot databasen.
+
+  V_PERSON_RATE
+    En rad per person med den timkostnad och arbetstid som gäller, och om värdet är personens eget
+    eller typens standardvärde.
+
+  V_TIME_ANALYSIS
+    En rad per initiativ, kopplad person, år och månad (1–12), även för månader utan registrerad
+    tid. Raderna bildas av kopplade personer × initiativets år × tolv månader. Värden från
+    TIME_ENTRY läggs till där de finns. En saknad rad betyder estimat 0 och ej rapporterat utfall.
+    Vyn innehåller:
+      - sektion, produktägare, initiativ och person
+      - personens hemsektion och typ
+      - estimat, utfall och avvikelse
+      - timkostnad, estimerad kostnad och utfallskostnad.
+    Utfall, avvikelse och utfallskostnad är NULL när inget utfall är rapporterat. Tillsammans med
+    V_PERSON_MONTH_LOAD ger vyn alla kolumner i CSV-exporten (3.5).
+
+  V_PERSON_MONTH_LOAD
+    En rad per person, år och månad. Vyn innehåller:
+      - summan av estimat och summan av utfall i alla initiativ, oavsett sektion (5.2)
+      - personens arbetstid
+      - markering för överallokering, dvs. att summan är större än arbetstiden, för estimat
+        respektive utfall.
+
+  V_INITIATIVE_BUDGET
+    En rad per initiativ. Vyn innehåller budgeten, den estimerade kostnaden och utfallskostnaden
+    för initiativets alla år, samt andelen av budgeten i procent för båda. Avrundning och
+    färgregler, t.ex. rött från 101 %, hanteras i gränssnittet.
+
+
+7. INDEX
+--------
+
+Oracle skapar automatiskt index för primärnycklar, men inte för främmande nycklar. Utan index på
+en främmande nyckel låser Oracle hela barntabellen när en rad i föräldratabellen raderas, och
+kaskadraderingar går långsammare. Därför indexeras alla främmande nycklar, utom de som pekar på
+uppslagstabellerna PERSON_TYPE och TAJMA_CLASS, vars rader aldrig raderas.
+
+  IX_PERSON_SECTION              PERSON (SECTION_ID)
+      Främmande nyckel. Personal per sektion, t.ex. i adminläget och vid radering av en sektion.
+  IX_PRODUCT_OWNER_SECTION       PRODUCT_OWNER (SECTION_ID)
+      Främmande nyckel. Produktägare per sektion, t.ex. för sektionsfiltret.
+  IX_INITIATIVE_PRODUCT_OWNER    INITIATIVE (PRODUCT_OWNER_ID)
+      Främmande nyckel. Initiativ per produktägare, t.ex. för produktägarfiltret.
+  IX_INITIATIVE_YEAR_YEAR        INITIATIVE_YEAR (CALENDAR_YEAR)
+      Initiativ per år, för årsväljaren i arbetsläget.
+  IX_INITIATIVE_PERSON_PERSON    INITIATIVE_PERSON (PERSON_ID)
+      Främmande nyckel. En persons initiativ, i adminlistan och vid radering av en person.
+  IX_TIME_ENTRY_INITIATIVE_YEAR  TIME_ENTRY (INITIATIVE_ID, CALENDAR_YEAR)
+      Främmande nyckel till INITIATIVE_YEAR. Ett initiativs tid för valt år (initiativtabellen).
+  IX_TIME_ENTRY_PERSON_PERIOD    TIME_ENTRY (PERSON_ID, CALENDAR_YEAR, CALENDAR_MONTH)
+      En persons totala tid per månad i alla initiativ, för kapacitetskontrollen (5.2).
+
+Primärnycklarna täcker de övriga främmande nycklarna. INITIATIVE_YEAR och INITIATIVE_PERSON
+börjar med INITIATIVE_ID, och TIME_ENTRY börjar med (INITIATIVE_ID, PERSON_ID).
+
+
+8. SAMTIDIG REDIGERING
+----------------------
+
+I dag har varje webbläsare sin egen data. Med en gemensam databas kan flera personer ändra samma
+data samtidigt. Schemat hanterar det så här:
+
+  - Stamdata skyddas med optimistisk låsning via ROW_VERSION. Gränssnittet skickar med den version
+    det läste. Backend ändrar raden bara om versionen är oförändrad, och räknar då upp den. Har
+    någon annan hunnit ändra raden får användaren ett meddelande om att ladda om, i stället för att
+    den andras ändring skrivs över utan varning. Ett exempel är när två personer samtidigt ändrar
+    personalen i samma initiativ.
+  - Tid: varje månadscell är en egen rad, så ändringar i olika celler krockar aldrig. Backend
+    ändrar bara den kolumn som ändrats, estimat eller utfall. En person som planerar estimat skriver
+    därför inte över en annan som samtidigt rapporterar utfall för samma månad. Om två personer
+    ändrar samma cell samtidigt gäller den senaste ändringen, vilket bedöms räcka.
+  - Följd för backend och gränssnitt: appen sparar i dag hela datamängden vid varje ändring. Mot
+    databasen ska varje ändring sparas för sig, t.ex. en cell, en person eller ett initiativ.
+    Annars skriver användarna över varandras ändringar.
+  - Ändringar som berör flera tabeller görs i en transaktion. Det gäller t.ex. att skapa eller ändra
+    ett initiativ med personal och år, att flytta innehåll mellan sektioner, att radera och att
+    importera.
+  - Hur andra användares ändringar ska visas (omladdning eller regelbunden hämtning) bestäms i
+    backend och gränssnitt och påverkar inte schemat.
+
+
+9. KOPPLING TILL APPENS JSON-FORMAT (EXPORT OCH IMPORT)
+-------------------------------------------------------
+
+  JSON (AppData)                                   Databas
+  -----------------------------------------------  --------------------------------------------
+  settings.employee, settings.consultant           PERSON_TYPE (CODE 'employee', 'consultant')
+  sections[]                                       SECTION
+  people[]                                         PERSON (hourlyRate och monthlyHours: null
+                                                   blir NULL)
+  productOwners[]                                  PRODUCT_OWNER
+  initiatives[]                                    INITIATIVE (budget och tajmaClass: null
+                                                   blir NULL)
+  initiatives[].years[]                            INITIATIVE_YEAR
+  initiatives[].personIds[]                        INITIATIVE_PERSON
+  estimates[initiativ][person][år][månad 0–11]     TIME_ENTRY.ESTIMATED_HOURS
+                                                   (CALENDAR_MONTH = månad + 1)
+  actuals[initiativ][person][år][månad 0–11]       TIME_ENTRY.ACTUAL_HOURS (null blir NULL)
+
+Export
+  Backend läser tabellerna och bygger samma JSON som appen exporterar i dag (format
+  "ekonomi-budget", version 1). Backupfiler fungerar därför som tidigare.
+
+Import, som ersätter all data (3.5). Allt görs i en transaktion:
+  1. Filen valideras och äldre format migreras som i dag (parseAppData). Det gäller t.ex. data
+     utan sektioner, "hours" i stället för "estimates" och data utan utfall. Valideringen tar redan
+     bort tid för personer och år som inte är kopplade till initiativet, så att datan uppfyller
+     databasens främmande nycklar.
+  2. All befintlig data raderas i ordningen initiativ, produktägare, personal och sektioner.
+     Kaskaderna tar med sig tid, kopplingar och år.
+  3. PERSON_TYPE uppdateras med filens inställningar.
+  4. Datan läggs in i ordningen SECTION, PERSON, PRODUCT_OWNER, INITIATIVE, INITIATIVE_YEAR,
+     INITIATIVE_PERSON och TIME_ENTRY. Bara månader med estimat över 0 eller rapporterat utfall
+     blir rader.
+  5. Vid fel rullas allt tillbaka, och den befintliga datan är orörd.
+
+
+10. ÖVERGÅNG FRÅN LOCALSTORAGE
+------------------------------
+
+  - Datan finns i dag i varje användares webbläsare. Välj den webbläsare vars data ska gälla,
+    exportera JSON från fliken Data och importera filen via backend.
+  - Om flera personer har olika data i sina webbläsare måste den slås ihop manuellt före importen,
+    eftersom en import ersätter all data.
+  - Vyinställningarna (läge, flik, sortering, år, vy och filter) är personliga och kan ligga kvar i
+    webbläsarens localStorage. De hör inte hemma i databasen.
+
+
+11. ÖVERVÄGDA ALTERNATIV
+------------------------
+
+  a) Hela datamängden som ett JSON-dokument i en enda rad (CLOB- eller JSON-kolumn).
+     Det är enklast att bygga, eftersom backend bara sparar det appen redan har. Men databasen kan
+     då inte skydda relationerna, samtidiga ändringar skriver över varandra och det blir svårt att
+     ta ut rapporter med SQL. Avfärdat.
+
+  b) Separata tabeller för estimat och utfall.
+     Det ger två tabeller med samma struktur och samma främmande nycklar, och jämförelsen kräver
+     att de slås ihop. I den valda modellen ligger estimat och utfall för samma månad på samma rad,
+     så jämförelsevyn och CSV-exporten läser en enda rad. Avfärdat.
+
+  c) Tolv månadskolumner per rad, som appens listor med tolv värden.
+     Det ger färre rader men 24 tidskolumner. Det blir också krångligt att summera per månad över
+     alla initiativ (kapacitetskontrollen) och att filtrera på period. Avfärdat.
+
+  d) Löpnummer (IDENTITY) som primärnyckel.
+     Det är kompaktare, men varje export och import skulle behöva översätta mellan appens id:n och
+     databasens. Löpnummer kan läggas till senare som intern nyckel om behovet uppstår.
+
+  e) Affärsregler i triggers och PL/SQL.
+     Då samlas allt i databasen, men logiken delas upp mellan databas och backend. Se
+     rekommendationen i avsnitt 5.2.
+
+  f) Funktioner i Oracle 23ai.
+     JSON-relationella dualitetsvyer (JSON Relational Duality Views) kan visa tabellerna som
+     JSON-dokument i appens format och skulle kunna förenkla export och import. De behövs inte,
+     och schemat fungerar likadant utan dem.
+
+
+12. ÖPPNA FRÅGOR
+----------------
+
+Följande beslut påverkar schemat och bör tas innan det byggs.
+
+  1. Unika namn
+     Appen tillåter i dag t.ex. två personer eller två sektioner med samma namn. Ska databasen
+     förhindra dubbletter, utan hänsyn till versaler och gemener? Om ja: för vilka entiteter, och
+     ska namnet vara unikt inom sektionen eller i hela databasen?
+
+  2. Ändringshistorik
+     Ska det gå att se när ett estimat eller utfall ändrades och vad det var före ändringen? Utan
+     inloggning kan det inte registreras vem som ändrade. Historik kan läggas till senare utan att
+     befintliga tabeller ändras, antingen med en loggtabell för tidsändringar eller med Oracle
+     Flashback Data Archive.
+
+  3. Låsta perioder
+     Du har nämnt att tidigare år kanske ska låsas i framtiden. Det kan läggas till med en tabell
+     eller inställning för vilka perioder som är låsta, utan att befintliga tabeller ändras.
+
+  4. Timkostnad över tid
+     I dag räknas historiskt utfall om när timkostnaden ändras, enligt ditt beslut. Om kostnaden i
+     framtiden ska följa den timkostnad som gällde vid tillfället behövs en tabell med timkostnad
+     per person och giltighetsperiod. Eftersom kostnader bara beräknas i vyerna blir det en
+     avgränsad ändring.
+
+  5. Decimaler
+     Räcker två decimaler för timmar och belopp? Se avsnitt 2 om avrundning.
+
+  6. Import från tidrapporteringssystemet
+     Om importen införs föreslås en separat tabell för mellanlagring av inlästa rader. Raderna
+     kontrolleras där innan de förs över till TIME_ENTRY.
