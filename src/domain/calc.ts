@@ -1,0 +1,223 @@
+import type { AppData, Initiative, Measure, MonthActuals, MonthHours, Person, Settings, TimeMap } from './types';
+
+export const zeroMonths = (): MonthHours => Array<number>(12).fill(0);
+export const emptyActuals = (): MonthActuals => Array<number | null>(12).fill(null);
+
+/** Summerar timmar; `null` (ej rapporterat utfall) räknas som 0. */
+export const sumHours = (values: readonly (number | null)[]) =>
+  values.reduce<number>((total, value) => total + (value ?? 0), 0);
+
+// ---------------------------------------------------------------- Timkostnad och arbetstid
+
+export function effectiveRate(person: Person, settings: Settings): number {
+  return person.hourlyRate ?? settings[person.type].hourlyRate;
+}
+
+export function effectiveMonthlyHours(person: Person, settings: Settings): number {
+  return person.monthlyHours ?? settings[person.type].monthlyHours;
+}
+
+// ---------------------------------------------------------------- Timmar per månad
+
+/** Estimerade timmar per månad för en person i ett initiativ ett visst år (alltid 12 värden). */
+export function getMonthEstimates(data: AppData, initiativeId: string, personId: string, year: number): MonthHours {
+  const stored = data.estimates[initiativeId]?.[personId]?.[year];
+  return zeroMonths().map((_, month) => stored?.[month] ?? 0);
+}
+
+/** Rapporterat utfall per månad (alltid 12 värden, `null` = inte rapporterat). */
+export function getMonthActuals(data: AppData, initiativeId: string, personId: string, year: number): MonthActuals {
+  const stored = data.actuals[initiativeId]?.[personId]?.[year];
+  return emptyActuals().map((_, month) => stored?.[month] ?? null);
+}
+
+/** Timmar per månad enligt valt mått. Ej rapporterat utfall räknas som 0. */
+export function getMonthValues(
+  data: AppData,
+  initiativeId: string,
+  personId: string,
+  year: number,
+  measure: Measure,
+): MonthHours {
+  if (measure === 'estimate') return getMonthEstimates(data, initiativeId, personId, year);
+  return getMonthActuals(data, initiativeId, personId, year).map((actual) => actual ?? 0);
+}
+
+// ---------------------------------------------------------------- Initiativ
+
+export interface InitiativeRow {
+  person: Person;
+  rate: number;
+  months: MonthHours;
+  totalHours: number;
+  totalCost: number;
+}
+
+export interface InitiativeSummary {
+  rows: InitiativeRow[];
+  monthTotals: MonthHours;
+  totalHours: number;
+  totalCost: number;
+}
+
+/** Timmar och kostnad per person och månad för ett initiativ ett visst år. */
+export function summarizeInitiative(
+  data: AppData,
+  initiative: Initiative,
+  year: number,
+  measure: Measure = 'estimate',
+): InitiativeSummary {
+  const rows = linkedPeople(data, initiative).map((person): InitiativeRow => {
+    const months = getMonthValues(data, initiative.id, person.id, year, measure);
+    const rate = effectiveRate(person, data.settings);
+    const totalHours = sumHours(months);
+    return { person, rate, months, totalHours, totalCost: totalHours * rate };
+  });
+  return {
+    rows,
+    monthTotals: zeroMonths().map((_, month) => sumHours(rows.map((row) => row.months[month]!))),
+    totalHours: sumHours(rows.map((row) => row.totalHours)),
+    totalCost: sumHours(rows.map((row) => row.totalCost)),
+  };
+}
+
+/** Personal kopplad till initiativet, i initiativets ordning. */
+export function linkedPeople(data: AppData, initiative: Initiative): Person[] {
+  const peopleById = new Map(data.people.map((person) => [person.id, person]));
+  return initiative.personIds.flatMap((id) => peopleById.get(id) ?? []);
+}
+
+/** Ett initiativs sektion är dess produktägares sektion. */
+export function initiativeSectionId(data: AppData, initiative: Initiative): string | undefined {
+  return data.productOwners.find((owner) => owner.id === initiative.productOwnerId)?.sectionId;
+}
+
+export interface InitiativeFilter {
+  year: number;
+  /** Tom sträng = alla sektioner. */
+  sectionId: string;
+  /** Tom sträng = alla produktägare. */
+  ownerId: string;
+}
+
+/** Initiativ som gäller året och, om angivet, tillhör sektionen och produktägaren. */
+export function filterInitiatives(data: AppData, filter: InitiativeFilter): Initiative[] {
+  return data.initiatives.filter(
+    (initiative) =>
+      initiative.years.includes(filter.year) &&
+      (!filter.sectionId || initiativeSectionId(data, initiative) === filter.sectionId) &&
+      (!filter.ownerId || initiative.productOwnerId === filter.ownerId),
+  );
+}
+
+/** Samtliga år som förekommer på något initiativ, stigande. */
+export function allInitiativeYears(data: AppData): number[] {
+  return [...new Set(data.initiatives.flatMap((initiative) => initiative.years))].sort((a, b) => a - b);
+}
+
+// ---------------------------------------------------------------- Kapacitet
+
+export interface PersonCapacity {
+  /** Normal arbetstid per månad. */
+  capacity: number;
+  /** Personens totala tid per månad i alla initiativ. */
+  monthTotals: MonthHours;
+  /** Per månad: tiden överskrider den normala arbetstiden. */
+  overallocated: boolean[];
+}
+
+/**
+ * En persons totala tid per månad i alla initiativ (oavsett sektion) jämfört med den normala
+ * arbetstiden. Endast initiativ där personen är kopplad och som gäller året räknas.
+ */
+export function personCapacity(
+  data: AppData,
+  person: Person,
+  year: number,
+  measure: Measure = 'estimate',
+): PersonCapacity {
+  const monthTotals = zeroMonths();
+  for (const initiative of data.initiatives) {
+    if (!initiative.personIds.includes(person.id) || !initiative.years.includes(year)) continue;
+    getMonthValues(data, initiative.id, person.id, year, measure).forEach((hours, month) => {
+      monthTotals[month]! += hours;
+    });
+  }
+  const capacity = effectiveMonthlyHours(person, data.settings);
+  return { capacity, monthTotals, overallocated: monthTotals.map((total) => total > capacity) };
+}
+
+export const countOverallocatedMonths = (capacity: PersonCapacity) => capacity.overallocated.filter(Boolean).length;
+
+// ---------------------------------------------------------------- Lagrade timmar (alla år)
+
+const timeMapFor = (data: AppData, measure: Measure): TimeMap<number | null> =>
+  measure === 'estimate' ? data.estimates : data.actuals;
+
+/** Summa av alla lagrade timmar för en person i ett initiativ, alla år. */
+export function storedHoursForPersonInInitiative(
+  data: AppData,
+  initiativeId: string,
+  personId: string,
+  measure: Measure = 'estimate',
+): number {
+  const byYear = timeMapFor(data, measure)[initiativeId]?.[personId] ?? {};
+  return sumHours(Object.values(byYear).map(sumHours));
+}
+
+/** Summa av alla lagrade timmar i ett initiativ, alla personer och år. */
+export function storedHoursForInitiative(data: AppData, initiativeId: string, measure: Measure = 'estimate'): number {
+  const personIds = Object.keys(timeMapFor(data, measure)[initiativeId] ?? {});
+  return sumHours(personIds.map((id) => storedHoursForPersonInInitiative(data, initiativeId, id, measure)));
+}
+
+export interface StoredHours {
+  estimate: number;
+  actual: number;
+}
+
+export interface HoursLoss {
+  /** Borttagna personer med lagrade timmar (alla år). */
+  people: ({ personId: string } & StoredHours)[];
+  /** Borttagna år med lagrade timmar för personer som finns kvar i initiativet. */
+  years: ({ year: number } & StoredHours)[];
+}
+
+const hasHours = (hours: StoredHours) => hours.estimate > 0 || hours.actual > 0;
+
+/** Vilka timmar skulle raderas om initiativet fick nya personer och år? */
+export function hoursLostByUpdate(
+  data: AppData,
+  initiative: Initiative,
+  next: { personIds: string[]; years: number[] },
+): HoursLoss {
+  const keptPersonIds = initiative.personIds.filter((id) => next.personIds.includes(id));
+  const yearHours = (map: TimeMap<number | null>, year: number) =>
+    sumHours(keptPersonIds.map((id) => sumHours(map[initiative.id]?.[id]?.[year] ?? [])));
+
+  const people = initiative.personIds
+    .filter((id) => !next.personIds.includes(id))
+    .map((personId) => ({
+      personId,
+      estimate: storedHoursForPersonInInitiative(data, initiative.id, personId, 'estimate'),
+      actual: storedHoursForPersonInInitiative(data, initiative.id, personId, 'actual'),
+    }))
+    .filter(hasHours);
+  const years = initiative.years
+    .filter((year) => !next.years.includes(year))
+    .map((year) => ({ year, estimate: yearHours(data.estimates, year), actual: yearHours(data.actuals, year) }))
+    .filter(hasHours);
+  return { people, years };
+}
+
+// ---------------------------------------------------------------- Rapportering
+
+/**
+ * Index för den sista avslutade månaden i `year` (0 = januari), sett från `today`: 11 för
+ * passerade år och -1 om ingen månad har hunnit avslutas.
+ */
+export function lastCompletedMonth(year: number, today: Date): number {
+  if (year < today.getFullYear()) return 11;
+  if (year > today.getFullYear()) return -1;
+  return today.getMonth() - 1;
+}

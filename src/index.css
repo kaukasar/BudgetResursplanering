@@ -1,0 +1,1071 @@
+/* ================================================================== Variabler */
+
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #f8f9fc;
+  --surface-3: #eef1f7;
+  --border: #dde2ec;
+  --border-strong: #c3cad8;
+  --text: #1c2333;
+  --muted: #5d6679;
+  --faint: #b3bccb;
+  --placeholder: #c0c6d2;
+  --primary: #2557d6;
+  --primary-hover: #1d47b3;
+  --primary-soft: #e8eefc;
+  --danger: #c4281c;
+  --danger-hover: #a31f15;
+  --invalid-bg: #fff6f5;
+  --ok: #1e7b47;
+  --ok-soft: #e2f3e9;
+  --compare: #6b3fb8;
+  --compare-soft: #efe8fa;
+  /* Överallokering och över budget. */
+  --over-bg: #fde3e1;
+  --over-text: #b42318;
+  /* Avvikelse i jämförelsevyn: medvetet inte röd, som är reserverad för överallokering. */
+  --dev-up: #b45309;
+  --dev-down: var(--primary);
+  /* Budgetstapeln. */
+  --bar-track: #e3e7ef;
+  --bar-prognosis-faint: #c9d6f3;
+  --bar-prognosis-faint-over: #f1b8b2;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
+
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ================================================================== Grund och hjälpklasser */
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+}
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  line-height: 1.25;
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12.5px;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.over-text {
+  color: var(--over-text);
+  font-weight: 600;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ================================================================== App-skal */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  font-size: 16px;
+}
+.brand-mark {
+  width: 26px;
+  height: 26px;
+}
+.brand-name {
+  font-size: inherit;
+}
+.topbar .spacer {
+  flex: 1;
+}
+
+.main {
+  padding: 20px 24px 48px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ================================================================== Knappar och fält */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: #a9b2c4;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:focus-visible,
+.link-btn:focus-visible,
+.segmented button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 500;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+.link-btn.danger {
+  color: var(--danger);
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 8px;
+  background: #e9edf4;
+}
+.segmented button {
+  border: 0;
+  background: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--muted);
+}
+.segmented button[aria-pressed='true'],
+.segmented button[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field > span,
+.field > label {
+  font-weight: 550;
+  font-size: 13px;
+}
+.field > .field-hint {
+  font-weight: 400;
+}
+.field > .segmented {
+  align-self: flex-start;
+}
+.input,
+.select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  min-width: 0;
+}
+.input:focus,
+.select:focus {
+  outline: 2px solid var(--primary-soft);
+  border-color: var(--primary);
+}
+.input.invalid {
+  border-color: var(--danger);
+  background: var(--invalid-bg);
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.inline-form .input {
+  width: 280px;
+}
+.inline-form.with-unit {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.inline-form .input.number-input {
+  width: 140px;
+}
+.inline-form .input.year-input {
+  width: 110px;
+}
+
+/* ================================================================== Kort, tabeller och notiser */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.card-body {
+  padding: 16px;
+}
+.card-body.notice-row {
+  padding-bottom: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+.table thead th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  font-weight: 600;
+  background: var(--surface-2);
+}
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.table .actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.table .num {
+  text-align: right;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+
+.tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 550;
+  background: #eef1f6;
+  color: var(--muted);
+}
+.tag.employee {
+  background: #e6f4ec;
+  color: #1e6b40;
+}
+.tag.consultant {
+  background: #fdf0dc;
+  color: #8a5300;
+}
+.tag.custom {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.empty h3 {
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.empty .actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.notice {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: #1b3f9c;
+}
+.notice.success {
+  background: #e6f4ec;
+  color: var(--ok);
+}
+.notice.error {
+  background: var(--over-bg);
+  color: var(--over-text);
+}
+
+/* ================================================================== Arbetsläge: filter, vyer och nyckeltal */
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.year-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.year-picker .btn {
+  width: 34px;
+  padding: 0;
+}
+.filter-select {
+  min-width: 210px;
+}
+
+/* Varje vy har en egen accentfärg så att det alltid är tydligt vad man matar in. */
+.work {
+  --view-accent: var(--primary);
+  --view-soft: var(--primary-soft);
+}
+.work.view-actual {
+  --view-accent: var(--ok);
+  --view-soft: var(--ok-soft);
+}
+.work.view-compare {
+  --view-accent: var(--compare);
+  --view-soft: var(--compare-soft);
+}
+.view-switch .segmented button[aria-pressed='true'] {
+  color: #fff;
+}
+.view-switch .segmented button.view-estimate[aria-pressed='true'] {
+  background: var(--primary);
+}
+.view-switch .segmented button.view-actual[aria-pressed='true'] {
+  background: var(--ok);
+}
+.view-switch .segmented button.view-compare[aria-pressed='true'] {
+  background: var(--compare);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat {
+  padding: 12px 16px;
+}
+.stat .label {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.stat .value {
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.stat.alert .value {
+  color: var(--over-text);
+}
+
+/* ================================================================== Arbetsläge: initiativhuvud och budget */
+
+.card.initiative {
+  border-top: 3px solid var(--view-accent);
+}
+.view-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--view-soft);
+  color: var(--view-accent);
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: 2px;
+}
+.initiative-head h3 {
+  font-size: 16px;
+}
+.initiative-head .owner {
+  color: var(--muted);
+  font-size: 13px;
+}
+.initiative-head .totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.initiative-head .totals div {
+  text-align: right;
+}
+.initiative-head .totals .label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.initiative-head .totals .value {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.initiative-head .budget {
+  min-width: 110px;
+}
+.initiative-head .budget-wide {
+  min-width: 170px;
+}
+.budget-values {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+}
+.over-budget .value {
+  color: var(--over-text);
+}
+/* Utfall färgas efter sin egen andel av budgeten, oberoende av prognosen. */
+.initiative-head .totals .actual-value {
+  color: var(--ok);
+}
+.initiative-head .totals .actual-value.over {
+  color: var(--over-text);
+}
+
+/* Stapeln: prognosen (heldragen i estimatvyn, ljus bakom utfallet i övriga vyer) och utfallet. */
+.budget-bar {
+  position: relative;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--bar-track);
+  overflow: hidden;
+}
+.budget-bar span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: inherit;
+}
+.budget-bar .prognosis {
+  background: var(--primary);
+}
+.budget-bar .prognosis.faint {
+  background: var(--bar-prognosis-faint);
+}
+.over-budget .budget-bar .prognosis {
+  background: var(--over-text);
+}
+.over-budget .budget-bar .prognosis.faint {
+  background: var(--bar-prognosis-faint-over);
+}
+.budget-bar .actual {
+  background: var(--ok);
+}
+.budget-bar .actual.over {
+  background: var(--over-text);
+}
+
+/* ================================================================== Arbetsläge: tabeller */
+
+/* Fast layout: månadskolumnerna delar lika på utrymmet mellan de fasta kolumnerna. */
+.grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 1100px;
+  table-layout: fixed;
+}
+.grid .col-person {
+  width: 220px;
+}
+.grid .col-total {
+  width: 96px;
+}
+.grid .col-cost {
+  width: 132px;
+}
+.grid th,
+.grid td {
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  height: 36px;
+}
+.grid thead th {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+  text-align: right;
+}
+.grid thead th:first-child {
+  text-align: left;
+  padding-left: 16px;
+}
+.grid .total {
+  padding: 0 12px;
+  background: var(--surface-2);
+}
+.grid .cost {
+  padding: 0 16px 0 12px;
+  background: var(--surface-2);
+}
+.grid tfoot th,
+.grid tfoot td {
+  font-weight: 650;
+  background: var(--surface-3);
+  border-bottom: 0;
+  padding: 0 8px;
+}
+.grid tfoot th {
+  text-align: left;
+  padding-left: 16px;
+}
+.grid tbody tr:hover td {
+  background-color: #fafbfe;
+}
+
+.grid .person {
+  padding: 4px 8px 4px 16px;
+  text-align: left;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.grid .person .meta {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.grid .person.over .name {
+  color: var(--over-text);
+}
+/* Personkolumnen ligger kvar vid horisontell scroll (smala skärmar). */
+.grid .person,
+.grid thead th:first-child,
+.grid tfoot th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: inset -1px 0 0 var(--border);
+}
+.grid tbody .person {
+  background: var(--surface);
+}
+
+/* Inmatningsceller. height: 1px + height: 100% låter fältet fylla hela radhöjden. */
+.grid td.cell {
+  height: 1px;
+}
+.cell input {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 35px;
+  border: 0;
+  border-left: 1px solid transparent;
+  background: transparent;
+  padding: 0 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cell input::placeholder {
+  color: var(--placeholder);
+}
+.cell input:hover {
+  background: #f1f4fb;
+}
+.cell input:focus {
+  outline: 2px solid var(--view-accent, var(--primary));
+  outline-offset: -2px;
+  background: #fff;
+}
+.cell input.invalid {
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+  background: var(--invalid-bg);
+}
+/* I utfallsvyn visar tomma celler estimatet som ledtext. */
+.work.view-actual .cell input::placeholder {
+  color: var(--faint);
+  font-style: italic;
+}
+.fill-btn {
+  display: block;
+  padding: 0;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ok);
+}
+
+/* Överallokering: röd text, ingen röd bakgrund. */
+td.over input,
+td.over span {
+  color: var(--over-text);
+  font-weight: 650;
+}
+.over-flag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--over-text);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+/* Jämförelse: utfall stort, avvikelse litet under. */
+.grid.compare td.cmp {
+  padding: 3px 8px;
+  line-height: 1.2;
+}
+.grid.compare .total {
+  padding: 3px 10px;
+  line-height: 1.2;
+}
+.cmp-value {
+  display: block;
+  font-weight: 500;
+}
+td.not-reported .cmp-value {
+  color: var(--placeholder);
+}
+.dev {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.dev-up {
+  color: var(--dev-up);
+}
+.dev-down {
+  color: var(--dev-down);
+}
+.expand-btn {
+  border: 0;
+  background: none;
+  padding: 0 4px 0 0;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+.detail-row th,
+.detail-row td {
+  background: #fafbfd;
+  color: var(--muted);
+  font-size: 12.5px;
+  height: 28px;
+}
+.detail-row td.num {
+  padding: 0 8px;
+}
+
+/* Kapacitetsöversikt (fällbar). */
+.capacity summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 12px 16px;
+}
+.capacity summary::-webkit-details-marker {
+  display: none;
+}
+.capacity summary h3 {
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.capacity summary h3::before {
+  content: '▸';
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.capacity[open] summary h3::before {
+  transform: rotate(90deg);
+}
+.capacity[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+.capacity .grid td.num {
+  padding: 0 8px;
+}
+
+/* ================================================================== Adminläge */
+
+.tabs {
+  margin-bottom: 16px;
+}
+.admin-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-section-head h2 {
+  font-size: 17px;
+}
+
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.sort-btn:hover {
+  color: var(--primary);
+}
+.sort-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.sort-icon {
+  font-size: 9px;
+  color: var(--faint);
+}
+.sort-btn.active .sort-icon,
+.sort-btn:hover .sort-icon {
+  color: var(--primary);
+}
+
+.settings-title {
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+.settings-intro {
+  margin: 0;
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.settings-grid .card-body {
+  display: grid;
+  gap: 12px;
+}
+
+.data-actions {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.data-actions .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+.data-actions p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.reassign-list {
+  display: grid;
+  gap: 8px;
+}
+.reassign-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+.reassign-row .name {
+  flex: 1;
+  font-weight: 550;
+  min-width: 140px;
+}
+
+/* ================================================================== Dialoger och formulär */
+
+dialog.modal {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgb(16 24 40 / 25%);
+  color: var(--text);
+}
+dialog.modal.wide {
+  width: min(720px, calc(100vw - 32px));
+}
+dialog.modal::backdrop {
+  background: rgb(16 24 40 / 45%);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 {
+  font-size: 16px;
+}
+.modal-close {
+  border: 0;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.modal-body {
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+}
+.modal-body p {
+  margin: 0;
+}
+.modal-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 0 0 10px 10px;
+}
+
+.form-stack {
+  display: grid;
+  gap: 14px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.form-note {
+  margin: -6px 0 0;
+}
+fieldset.plain {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+fieldset.plain legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 550;
+  font-size: 13px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.chip.checked {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.chip:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.check-list {
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.check-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.check-list label:last-child {
+  border-bottom: 0;
+}
+.check-list label:hover {
+  background: var(--surface-2);
+}
+.check-list .spacer {
+  flex: 1;
+}
+
+/* ================================================================== Smala skärmar */
+
+@media (max-width: 720px) {
+  .topbar {
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topbar .spacer {
+    display: none;
+  }
+  .topbar nav {
+    display: flex;
+    width: 100%;
+  }
+  .topbar nav button {
+    flex: 1;
+  }
+  .brand {
+    font-size: 15px;
+  }
+  .main {
+    padding: 16px;
+  }
+  .grid .col-person {
+    width: 150px;
+  }
+  .grid .person {
+    padding-left: 12px;
+  }
+  .stat .value {
+    font-size: 18px;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  .inline-form .input {
+    width: 100%;
+  }
+}
