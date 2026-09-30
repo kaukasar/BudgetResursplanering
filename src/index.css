@@ -1000,9 +1000,18 @@ fieldset.plain legend {
   border-color: var(--primary);
   color: #fff;
 }
+/* Den sista valda sektionen i ett filter går inte att avmarkera. */
+.chip:has(input:disabled) {
+  cursor: default;
+}
 .chip:has(input:focus-visible) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+.section-filter {
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .check-list {

@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
-import { formatInputNumber, parseNonNegative } from '../domain/format';
+import { formatInputNumber, parseWholeNumber } from '../domain/format';
 
 interface HoursCellProps {
   /** `null` = inget värde (endast när `nullable`). */
@@ -25,7 +25,7 @@ const display = (value: number | null, nullable: boolean) => formatInputNumber(!
 /** `undefined` = ogiltig inmatning. */
 function parse(text: string, nullable: boolean): number | null | undefined {
   if (nullable && text.trim() === '') return null;
-  return parseNonNegative(text) ?? undefined;
+  return parseWholeNumber(text) ?? undefined;
 }
 
 function focusCell(grid: string, row: number, col: number) {
@@ -67,12 +67,12 @@ export function HoursCell({
   return (
     <input
       type="text"
-      inputMode="decimal"
+      inputMode="numeric"
       autoComplete="off"
       className={invalid ? 'invalid' : undefined}
       aria-label={label}
       aria-invalid={invalid || undefined}
-      title={invalid ? 'Ange ett tal som är 0 eller större' : undefined}
+      title={invalid ? 'Ange ett heltal som är 0 eller större' : undefined}
       placeholder={placeholder}
       data-grid={grid}
       data-row={row}

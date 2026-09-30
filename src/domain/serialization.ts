@@ -40,6 +40,9 @@ const isRecord = (value: unknown): value is UnknownRecord =>
 const isNonNegativeNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
+/** Appen hanterar bara heltal. Äldre data kan innehålla decimaler, som avrundas till närmaste heltal. */
+const toWholeNumber = (value: number) => Math.round(value);
+
 const isMissing = (value: unknown) => value === null || value === undefined;
 
 function fail(message: string): never {
@@ -59,7 +62,7 @@ function requireArray(value: unknown, what: string): unknown[] {
 function optionalNonNegative(value: unknown, what: string): number | null {
   if (isMissing(value)) return null;
   if (!isNonNegativeNumber(value)) fail(`${what} är felaktig.`);
-  return value;
+  return toWholeNumber(value);
 }
 
 // ---------------------------------------------------------------- Entiteter
@@ -76,7 +79,7 @@ function parseTypeSettings(value: unknown, type: PersonType): TypeSettings {
   if (!isRecord(value) || !isNonNegativeNumber(value.hourlyRate) || !isNonNegativeNumber(value.monthlyHours)) {
     fail(`inställningar för ${type} är felaktiga.`);
   }
-  return { hourlyRate: value.hourlyRate, monthlyHours: value.monthlyHours };
+  return { hourlyRate: toWholeNumber(value.hourlyRate), monthlyHours: toWholeNumber(value.monthlyHours) };
 }
 
 function parsePerson(value: unknown): Person {
@@ -104,8 +107,11 @@ function parseOwner(value: unknown): ProductOwner {
 /** Saknas i data från äldre versioner och tolkas då som "ingen budget". */
 function parseBudget(value: unknown, initiativeName: string): number | null {
   if (isMissing(value)) return null;
-  if (!isNonNegativeNumber(value) || value === 0) fail(`initiativet "${initiativeName}" har en ogiltig budget.`);
-  return value;
+  // En budget under 0,5 kr blir 0 vid avrundning och är då inte längre en giltig budget.
+  if (!isNonNegativeNumber(value) || toWholeNumber(value) === 0) {
+    fail(`initiativet "${initiativeName}" har en ogiltig budget.`);
+  }
+  return toWholeNumber(value);
 }
 
 /** Saknas i data från äldre versioner och tolkas då som "inget värde". */
@@ -159,7 +165,7 @@ function resolveSections<T extends { name: string; sectionId: string }>(
 }
 
 /** Behåller endast timmar som hör till existerande initiativ, kopplade personer och initiativets år. */
-function parseTimeMap<T>(
+function parseTimeMap<T extends number | null>(
   rawMap: unknown,
   initiatives: Initiative[],
   what: string,
@@ -179,7 +185,9 @@ function parseTimeMap<T>(
         if (!Array.isArray(months) || months.length !== 12 || !months.every(isValue)) {
           fail(`${what} för initiativet "${initiative.name}" år ${year} är felaktiga.`);
         }
-        ((result[initiative.id] ??= {})[personId] ??= {})[year] = [...months];
+        ((result[initiative.id] ??= {})[personId] ??= {})[year] = months.map((value) =>
+          typeof value === 'number' ? (toWholeNumber(value) as T) : value,
+        );
       }
     }
   }

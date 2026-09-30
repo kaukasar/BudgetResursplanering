@@ -1,4 +1,4 @@
-const hoursFormat = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 2 });
+/** Appen hanterar bara heltal. Beräknade värden med decimaler avrundas till närmaste heltal vid visning. */
 const wholeNumberFormat = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
 
 /** Intl använder hårda mellanslag (U+00A0, U+202F) som tusentalsavgränsare. */
@@ -14,18 +14,22 @@ const withPlainSpaces = (text: string) => text.replace(HARD_SPACES, ' ');
 export const plural = (count: number, singular: string, pluralForm: string) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
-export const formatHours = (hours: number) => withPlainSpaces(hoursFormat.format(hours));
-export const formatSek = (sek: number) => `${withPlainSpaces(wholeNumberFormat.format(sek))} kr`;
-export const formatPercent = (percent: number) => `${withPlainSpaces(wholeNumberFormat.format(percent))} %`;
+/** Heltal med tusentalsavgränsare, avrundat till närmaste heltal. */
+const formatWholeNumber = (value: number) => withPlainSpaces(wholeNumberFormat.format(value));
 
-/** Avvikelse med tecken: "+4", "−8,5", "±0". */
+export const formatHours = formatWholeNumber;
+export const formatSek = (sek: number) => `${formatWholeNumber(sek)} kr`;
+export const formatPercent = (percent: number) => `${formatWholeNumber(percent)} %`;
+
+/** Avvikelse med tecken: "+4", "−9", "±0". Avrundas först, så att t.ex. 0,4 visas som "±0". */
 export function formatSignedHours(hours: number): string {
-  if (hours === 0) return '±0';
-  return `${hours > 0 ? '+' : '−'}${formatHours(Math.abs(hours))}`;
+  const rounded = Math.round(hours);
+  if (rounded === 0) return '±0';
+  return `${rounded > 0 ? '+' : '−'}${formatHours(Math.abs(rounded))}`;
 }
 
-/** Värde i ett inmatningsfält: decimalkomma och inga tusentalsavgränsare. `null` = tomt fält. */
-export const formatInputNumber = (value: number | null) => (value === null ? '' : String(value).replace('.', ','));
+/** Värde i ett inmatningsfält: heltal utan tusentalsavgränsare. `null` = tomt fält. */
+export const formatInputNumber = (value: number | null) => (value === null ? '' : String(Math.round(value)));
 
 /** "40 planerade timmar och 12 timmar rapporterat utfall raderas permanent." – `null` om inget raderas. */
 export function hoursLossText(estimate: number, actual: number): string | null {
@@ -46,22 +50,22 @@ export function hoursPairText(estimate: number, actual: number): string {
 // ---------------------------------------------------------------- Inmatning
 
 /**
- * Tolkar ett inmatat tal. Accepterar både komma och punkt som decimaltecken samt mellanslag
- * som tusentalsavgränsare. Tom sträng tolkas som 0. Returnerar `null` vid ogiltig eller negativ inmatning.
+ * Tolkar ett inmatat heltal som är 0 eller större. Mellanslag som tusentalsavgränsare accepteras.
+ * Tom sträng tolkas som 0. Returnerar `null` vid ogiltig inmatning, t.ex. decimaler eller minustecken.
  */
-export function parseNonNegative(input: string): number | null {
-  const cleaned = input.replace(ALL_SPACES, '').replace(',', '.');
+export function parseWholeNumber(input: string): number | null {
+  const cleaned = input.replace(ALL_SPACES, '');
   if (cleaned === '') return 0;
-  if (!/^\d*\.?\d*$/.test(cleaned) || cleaned === '.') return null;
+  if (!/^\d+$/.test(cleaned)) return null;
   const value = Number(cleaned);
-  return Number.isFinite(value) ? value : null;
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 export type OptionalNumberInput = { ok: true; value: number | null } | { ok: false };
 
-/** Som `parseNonNegative`, men tom sträng betyder "inget värde" (`null`). */
-export function parseOptionalNonNegative(input: string): OptionalNumberInput {
+/** Som `parseWholeNumber`, men tom sträng betyder "inget värde" (`null`). */
+export function parseOptionalWholeNumber(input: string): OptionalNumberInput {
   if (input.trim() === '') return { ok: true, value: null };
-  const value = parseNonNegative(input);
+  const value = parseWholeNumber(input);
   return value === null ? { ok: false } : { ok: true, value };
 }

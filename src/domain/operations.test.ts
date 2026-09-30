@@ -6,6 +6,19 @@ import * as ops from './operations';
 import { DEFAULT_SECTION, parseAppData } from './serialization';
 import { emptyData, isEmptyData, type TajmaClass } from './types';
 
+describe('heltal', () => {
+  it('avvisar decimaler i timmar, timkostnad, arbetstid och budget', () => {
+    const d = domainFixture();
+    expect(() => ops.setEstimate(d, 'i1', 'anna', 2026, 0, 7.5)).toThrow(/heltal/);
+    expect(() => ops.setActual(d, 'i1', 'anna', 2026, 0, 0.5)).toThrow(/heltal/);
+    expect(() => ops.updatePerson(d, 'anna', { hourlyRate: 650.5 })).toThrow(/heltal/);
+    expect(() => ops.updatePerson(d, 'anna', { monthlyHours: 159.5 })).toThrow(/heltal/);
+    expect(() => ops.updateTypeSettings(d, 'employee', { hourlyRate: 625.5 })).toThrow(/heltal/);
+    expect(() => ops.updateInitiative(d, 'i1', { budget: 1000.5 })).toThrow(/heltal/);
+    expect(ops.setEstimate(d, 'i1', 'anna', 2026, 0, 8).estimates.i1?.anna?.[2026]?.[0]).toBe(8);
+  });
+});
+
 describe('tajmaklass', () => {
   it('är tom som standard, kan sättas, ändras och tas bort', () => {
     let d = domainFixture();

@@ -402,3 +402,106 @@ describe('adminläge', () => {
     expect(screen.getByRole('row', { name: /Kalle/ })).toHaveTextContent('1 000 kr/h');
   });
 });
+
+describe('sektionsfilter för personal i initiativformuläret', () => {
+  /** Seed plus Sara och produktägaren Stina i Sektion 2. */
+  const seedWithTwoSections = () => {
+    let d = seed();
+    d = ops.addPerson(d, {
+      id: 'sara',
+      name: 'Sara',
+      type: 'employee',
+      sectionId: 's2',
+      hourlyRate: null,
+      monthlyHours: null,
+    });
+    return ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+  };
+  const peopleIn = (dialog: HTMLElement) =>
+    [...dialog.querySelectorAll('.check-list label > span:first-of-type')].map((span) => span.textContent);
+  const sectionFilter = (dialog: HTMLElement) =>
+    within(dialog).getByRole('group', { name: 'Visa personal från sektion' });
+  const sectionChip = (dialog: HTMLElement, name: string) =>
+    within(sectionFilter(dialog)).getByRole('checkbox', { name });
+
+  it('visar som standard personal i produktägarens sektion; fler sektioner kan väljas', async () => {
+    useDataStore.setState({ data: seedWithTwoSections() });
+    const user = userEvent.setup();
+    renderApp('admin');
+    await user.click(screen.getByRole('tab', { name: /Initiativ/ }));
+    await user.click(within(screen.getByRole('row', { name: /^Portal/ })).getByRole('button', { name: 'Redigera' }));
+    const dialog = topDialog();
+
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle']);
+    expect(sectionChip(dialog, 'Sektion 1')).toBeChecked();
+    expect(sectionChip(dialog, 'Sektion 1')).toBeDisabled(); // minst en sektion visas alltid
+    expect(sectionChip(dialog, 'Sektion 2')).not.toBeChecked();
+
+    await user.click(sectionChip(dialog, 'Sektion 2'));
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle', 'Sara']); // inlånad personal sist
+    expect(within(dialog).getByRole('checkbox', { name: /Sara/ }).closest('label')).toHaveTextContent(
+      'lånas från Sektion 2',
+    );
+    expect(sectionChip(dialog, 'Sektion 1')).toBeEnabled();
+
+    // Bara Sektion 2: Anna och Kalle är kopplade och syns därför ändå.
+    await user.click(sectionChip(dialog, 'Sektion 1'));
+    expect(sectionChip(dialog, 'Sektion 2')).toBeDisabled();
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle', 'Sara']);
+    await user.click(within(dialog).getByRole('checkbox', { name: /Anna/ }));
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle', 'Sara']); // avmarkerad ligger Anna kvar i listan tills formuläret stängs
+
+    await user.click(within(dialog).getByRole('checkbox', { name: /Sara/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Alla sektioner' }));
+    expect(sectionChip(dialog, 'Sektion 1')).toBeChecked();
+    expect(within(dialog).getByRole('button', { name: 'Alla sektioner' })).toBeDisabled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Spara' }));
+    expect(useDataStore.getState().data.initiatives[0]!.personIds).toEqual(['kalle', 'sara']);
+  });
+
+  it('visar redan kopplad personal från andra sektioner även när deras sektion är bortfiltrerad', async () => {
+    let d = seedWithTwoSections();
+    d = ops.updateInitiative(d, 'portal', { personIds: ['anna', 'sara'] });
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp('admin');
+    await user.click(screen.getByRole('tab', { name: /Initiativ/ }));
+    await user.click(within(screen.getByRole('row', { name: /^Portal/ })).getByRole('button', { name: 'Redigera' }));
+    const dialog = topDialog();
+
+    expect(sectionChip(dialog, 'Sektion 2')).not.toBeChecked();
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle', 'Sara']);
+    expect(within(dialog).getByRole('checkbox', { name: /Sara/ })).toBeChecked();
+  });
+
+  it('nytt initiativ: alla sektioner innan produktägare är vald, sedan produktägarens sektion', async () => {
+    useDataStore.setState({ data: seedWithTwoSections() });
+    const user = userEvent.setup();
+    renderApp('admin');
+    await user.click(screen.getByRole('tab', { name: /Initiativ/ }));
+    await user.click(screen.getByRole('button', { name: '+ Nytt initiativ' }));
+    const dialog = topDialog();
+
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle', 'Sara']);
+    expect(sectionChip(dialog, 'Sektion 1')).toBeChecked();
+    expect(sectionChip(dialog, 'Sektion 2')).toBeChecked();
+
+    const owner = within(dialog).getByRole('combobox', { name: 'Produktägare' });
+    await user.selectOptions(owner, 'Stina');
+    expect(peopleIn(dialog)).toEqual(['Sara']);
+    await user.selectOptions(owner, 'Olle');
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle']);
+    expect(sectionChip(dialog, 'Sektion 2')).not.toBeChecked();
+  });
+
+  it('visar inget filter när bara en sektion har personal', async () => {
+    const user = userEvent.setup();
+    renderApp('admin');
+    await user.click(screen.getByRole('tab', { name: /Initiativ/ }));
+    await user.click(within(screen.getByRole('row', { name: /^Portal/ })).getByRole('button', { name: 'Redigera' }));
+    const dialog = topDialog();
+    expect(within(dialog).queryByRole('group', { name: 'Visa personal från sektion' })).toBeNull();
+    expect(peopleIn(dialog)).toEqual(['Anna', 'Kalle']);
+  });
+});

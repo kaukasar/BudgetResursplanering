@@ -22,15 +22,16 @@ function requireName(name: string): string {
   return trimmed;
 }
 
-function requireNonNegative(value: number, label: string): number {
-  if (!Number.isFinite(value) || value < 0) {
-    throw new DomainError(`${label} måste vara ett tal som är 0 eller större.`);
+/** Appen hanterar bara heltal, både för tid och pengar. */
+function requireWholeNumber(value: number, label: string): number {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new DomainError(`${label} måste vara ett heltal som är 0 eller större.`);
   }
   return value;
 }
 
-function optionalNonNegative(value: number | null, label: string): number | null {
-  return value === null ? null : requireNonNegative(value, label);
+function optionalWholeNumber(value: number | null, label: string): number | null {
+  return value === null ? null : requireWholeNumber(value, label);
 }
 
 function requireSection(data: AppData, sectionId: string): string {
@@ -65,10 +66,10 @@ function knownPersonIds(data: AppData, personIds: string[]): string[] {
   return [...new Set(personIds)].filter((id) => known.has(id));
 }
 
-/** Budget är frivillig; anges den måste den vara större än 0. */
+/** Budget är frivillig; anges den måste den vara ett heltal större än 0. */
 function normalizeBudget(budget: number | null | undefined): number | null {
   if (budget === null || budget === undefined) return null;
-  if (!Number.isFinite(budget) || budget <= 0) throw new DomainError('Budget måste vara ett belopp större än 0.');
+  if (!Number.isInteger(budget) || budget <= 0) throw new DomainError('Budget måste vara ett heltal större än 0.');
   return budget;
 }
 
@@ -135,8 +136,8 @@ function requireTimeSlot(data: AppData, slot: TimeSlot): void {
 
 export function updateTypeSettings(data: AppData, type: PersonType, patch: Partial<TypeSettings>): AppData {
   const next = { ...data.settings[type], ...patch };
-  requireNonNegative(next.hourlyRate, 'Timkostnad');
-  requireNonNegative(next.monthlyHours, 'Arbetstid');
+  requireWholeNumber(next.hourlyRate, 'Timkostnad');
+  requireWholeNumber(next.monthlyHours, 'Arbetstid');
   return { ...data, settings: { ...data.settings, [type]: next } };
 }
 
@@ -187,8 +188,8 @@ function validatePerson(data: AppData, person: Person): Person {
     ...person,
     name: requireName(person.name),
     sectionId: requireSection(data, person.sectionId),
-    hourlyRate: optionalNonNegative(person.hourlyRate, 'Timkostnad'),
-    monthlyHours: optionalNonNegative(person.monthlyHours, 'Arbetstid'),
+    hourlyRate: optionalWholeNumber(person.hourlyRate, 'Timkostnad'),
+    monthlyHours: optionalWholeNumber(person.monthlyHours, 'Arbetstid'),
   };
 }
 
@@ -326,7 +327,7 @@ export function setEstimate(
 ): AppData {
   const slot = { initiativeId, personId, year, month };
   requireTimeSlot(data, slot);
-  requireNonNegative(hours, 'Antal timmar');
+  requireWholeNumber(hours, 'Antal timmar');
   return { ...data, estimates: withMonthValue(data.estimates, slot, hours, zeroMonths) };
 }
 
@@ -341,7 +342,7 @@ export function setActual(
 ): AppData {
   const slot = { initiativeId, personId, year, month };
   requireTimeSlot(data, slot);
-  if (hours !== null) requireNonNegative(hours, 'Antal timmar');
+  if (hours !== null) requireWholeNumber(hours, 'Antal timmar');
   return { ...data, actuals: withMonthValue(data.actuals, slot, hours, emptyActuals) };
 }
 

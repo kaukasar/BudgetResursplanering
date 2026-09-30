@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { formatInputNumber, parseNonNegative, plural } from '../../domain/format';
+import { formatInputNumber, parseWholeNumber, plural } from '../../domain/format';
 import { PERSON_TYPE_LABEL, type PersonType } from '../../domain/types';
 import { useDataStore } from '../../store/store';
 
@@ -66,7 +66,7 @@ interface LiveNumberFieldProps {
 function LiveNumberField({ label, unit, value, onCommit }: LiveNumberFieldProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const id = useId();
-  const parse = (text: string) => (text.trim() === '' ? null : parseNonNegative(text));
+  const parse = (text: string) => (text.trim() === '' ? null : parseWholeNumber(text));
   const invalid = draft !== null && parse(draft) === null;
 
   return (
@@ -76,7 +76,7 @@ function LiveNumberField({ label, unit, value, onCommit }: LiveNumberFieldProps)
         <input
           id={id}
           className={invalid ? 'input invalid number-input' : 'input number-input'}
-          inputMode="decimal"
+          inputMode="numeric"
           value={draft ?? formatInputNumber(value)}
           onChange={(e) => {
             setDraft(e.target.value);

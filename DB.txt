@@ -75,16 +75,17 @@ Primärnycklar
   Nya id:n är UUID. De skapas av backend eller, som i dag, av webbläsaren.
 
 Datatyper för tal
-  Timmar per månad och arbetstid   NUMBER(6,2)    upp till 9 999,99 h, två decimaler
-  Timkostnad                       NUMBER(10,2)   SEK/h, två decimaler (öre)
-  Budget                           NUMBER(15,2)   SEK, två decimaler (öre)
+  Timmar per månad och arbetstid   NUMBER(6)      heltal, upp till 999 999 h
+  Timkostnad                       NUMBER(10)     heltal, SEK/h
+  Budget                           NUMBER(15)     heltal, SEK
   År                               NUMBER(4)
   Månad                            NUMBER(2)      1–12
 
-  Observera: appen accepterar i dag hur många decimaler som helst. Oracle avrundar utan varning
-  till kolumnens antal decimaler, så appen och databasen skulle kunna visa olika värden.
-  Rekommendation: begränsa inmatningen till två decimaler i gränssnittet och låt backend avvisa
-  värden med fler.
+  Appen hanterar bara heltal (claude.md 5.4), så alla talkolumner saknar decimaler. Oracle
+  avrundar utan varning ett värde med decimaler till heltal när det sparas i en sådan kolumn.
+  Backend ska därför själv avvisa decimaler, precis som appen gör, i stället för att förlita sig
+  på databasen. Beräknade värden som procent och avvikelse lagras inte (avsnitt 6) och avrundas
+  först när de visas.
 
 Datamängd
   Datamängden är liten (6). Med till exempel 50 initiativ som har i snitt 4 personer under 2 år
@@ -160,8 +161,8 @@ Behörighet
   CODE              VARCHAR2(20 CHAR)         Nej   Primärnyckel: 'employee' eller 'consultant',
                                                     samma koder som i appen och JSON-filen.
   LABEL             VARCHAR2(50 CHAR)         Nej   Visningsnamn: 'Anställd' eller 'Konsult'.
-  HOURLY_RATE       NUMBER(10,2)              Nej   Standardtimkostnad i SEK/h. Minst 0.
-  MONTHLY_HOURS     NUMBER(6,2)               Nej   Normal arbetstid i timmar per månad. Minst 0.
+  HOURLY_RATE       NUMBER(10)                Nej   Standardtimkostnad i SEK/h. Minst 0.
+  MONTHLY_HOURS     NUMBER(6)                 Nej   Normal arbetstid i timmar per månad. Minst 0.
   + gemensamma kolumner
 
   Tabellen har exakt två rader, som skapas vid installationen med appens standardvärden:
@@ -206,9 +207,9 @@ Behörighet
   PERSON_TYPE       VARCHAR2(20 CHAR)         Nej   Främmande nyckel till PERSON_TYPE.CODE.
   SECTION_ID        VARCHAR2(64 CHAR)         Nej   Hemsektion. Främmande nyckel till SECTION.ID,
                                                     utan kaskad.
-  HOURLY_RATE       NUMBER(10,2)              Ja    Egen timkostnad i SEK/h. NULL betyder att
+  HOURLY_RATE       NUMBER(10)                Ja    Egen timkostnad i SEK/h. NULL betyder att
                                                     typens standardvärde gäller. Minst 0.
-  MONTHLY_HOURS     NUMBER(6,2)               Ja    Egen arbetstid i h/mån. NULL betyder att
+  MONTHLY_HOURS     NUMBER(6)                 Ja    Egen arbetstid i h/mån. NULL betyder att
                                                     typens standardvärde gäller. Minst 0.
   + gemensamma kolumner
 
@@ -235,7 +236,7 @@ Behörighet
   NAME              VARCHAR2(200 CHAR)        Nej   Namn.
   PRODUCT_OWNER_ID  VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PRODUCT_OWNER.ID, utan
                                                     kaskad.
-  BUDGET            NUMBER(15,2)              Ja    Totalbudget i SEK för initiativets alla år.
+  BUDGET            NUMBER(15)                Ja    Totalbudget i SEK för initiativets alla år.
                                                     NULL = ingen budget. Större än 0 om angiven.
   TAJMA_CLASS       VARCHAR2(30 CHAR)         Ja    Främmande nyckel till TAJMA_CLASS.CODE.
                                                     NULL = tomt värde.
@@ -279,8 +280,8 @@ Behörighet
   CALENDAR_YEAR     NUMBER(4)                 Nej   År.
   CALENDAR_MONTH    NUMBER(2)                 Nej   Månad 1–12, där 1 = januari. Appen använder
                                                     0–11 internt, och backend räknar om.
-  ESTIMATED_HOURS   NUMBER(6,2)               Nej   Estimat (planerad tid). Standard 0. Minst 0.
-  ACTUAL_HOURS      NUMBER(6,2)               Ja    Utfall (faktisk tid). NULL = ej rapporterat,
+  ESTIMATED_HOURS   NUMBER(6)                 Nej   Estimat (planerad tid). Standard 0. Minst 0.
+  ACTUAL_HOURS      NUMBER(6)                 Ja    Utfall (faktisk tid). NULL = ej rapporterat,
                                                     0 = rapporterade 0 timmar. Minst 0.
   UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring.
 
@@ -565,9 +566,6 @@ Följande beslut påverkar schemat och bör tas innan det byggs.
      per person och giltighetsperiod. Eftersom kostnader bara beräknas i vyerna blir det en
      avgränsad ändring.
 
-  5. Decimaler
-     Räcker två decimaler för timmar och belopp? Se avsnitt 2 om avrundning.
-
-  6. Import från tidrapporteringssystemet
+  5. Import från tidrapporteringssystemet
      Om importen införs föreslås en separat tabell för mellanlagring av inlästa rader. Raderna
      kontrolleras där innan de förs över till TIME_ENTRY.

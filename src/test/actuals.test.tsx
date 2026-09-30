@@ -160,7 +160,7 @@ describe('estimat och utfall', () => {
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100); // estimat 65 000
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 0, 20); // estimat 20 000
     d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 90); // 90 × 650 = 58 500
-    d = ops.setActual(d, 'portal', 'kalle', YEAR, 0, 12.5); // 12,5 × 1 000 = 12 500
+    d = ops.setActual(d, 'portal', 'kalle', YEAR, 0, 12); // 12 × 1 000 = 12 000
     d = ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
     d = ops.addInitiative(d, {
       id: 'lager',
@@ -181,16 +181,16 @@ describe('estimat och utfall', () => {
     // Utfallskostnaden ligger direkt till höger om prognos kostnad (sist i raden).
     expect(statLabels().slice(-2)).toEqual([`Prognos kostnad ${YEAR}`, `Utfallskostnad ${YEAR}`]);
     expect(statValue(`Prognos kostnad ${YEAR}`)).toBe('85 000 kr');
-    expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('77 500 kr'); // 58 500 + 12 500 + 6 500
+    expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('77 000 kr'); // 58 500 + 12 000 + 6 500
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Sektion' }), 'Sektion 1');
-    expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('71 000 kr');
+    expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('70 500 kr');
 
     // Nytt utfall slår igenom direkt; prognosen står still.
     await user.click(screen.getByRole('button', { name: 'Utfall' }));
     await user.type(actualCell('Kalle', 'februari', 'Portal'), '4'); // + 4 000
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
-    expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('75 000 kr');
+    expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('74 500 kr');
     expect(statValue(`Prognos kostnad ${YEAR}`)).toBe('85 000 kr');
   });
 
@@ -199,7 +199,7 @@ describe('estimat och utfall', () => {
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100); // estimat 65 000
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 1, 10); // estimat 10 000
     d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 90); // 90 × 650 = 58 500
-    d = ops.setActual(d, 'portal', 'kalle', YEAR, 1, 12.5); // 12,5 × 1 000 = 12 500
+    d = ops.setActual(d, 'portal', 'kalle', YEAR, 1, 12); // 12 × 1 000 = 12 000
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
     renderApp();
@@ -210,8 +210,8 @@ describe('estimat och utfall', () => {
         (l) => `${l.textContent}: ${l.nextElementSibling!.textContent}`,
       );
     expect(headerTotals()).toEqual([
-      `Avvikelse ${YEAR}: −7,5 h`, // (90 − 100) + (12,5 − 10)
-      `Utfallskostnad ${YEAR}: 71 000 kr`,
+      `Avvikelse ${YEAR}: −8 h`, // (90 − 100) + (12 − 10)
+      `Utfallskostnad ${YEAR}: 70 500 kr`,
       `Prognos ${YEAR}: 75 000 kr`,
     ]);
 
@@ -219,14 +219,14 @@ describe('estimat och utfall', () => {
     await user.click(screen.getByRole('button', { name: 'Utfall' }));
     await user.type(actualCell('Anna', 'mars', 'Portal'), '20'); // + 13 000
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
-    expect(headerTotals()).toContain(`Utfallskostnad ${YEAR}: 84 000 kr`);
+    expect(headerTotals()).toContain(`Utfallskostnad ${YEAR}: 83 500 kr`);
     expect(headerTotals()).toContain(`Prognos ${YEAR}: 75 000 kr`);
   });
 
   it('utfallet i budgetrutan är grönt t.o.m. 100 % och rött från 101 %, både siffra och stapel', async () => {
-    // Kalle kostar 1 000 kr/h och budgeten är 100 000 kr, så 1 h = 1 %. Prognosen ligger på 200 %.
-    let d = ops.updateInitiative(seed(), 'portal', { budget: 100_000 });
-    d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 0, 200);
+    // Kalle kostar 1 000 kr/h och budgeten är 250 000 kr, så 1 h = 0,4 %. Prognosen ligger på 200 %.
+    let d = ops.updateInitiative(seed(), 'portal', { budget: 250_000 });
+    d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 0, 500);
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
     renderApp();
@@ -243,19 +243,19 @@ describe('estimat och utfall', () => {
     const input = actualCell('Kalle', 'januari', 'Portal');
 
     expectColor('0 %', false);
-    await user.type(input, '50');
+    await user.type(input, '125');
     expectColor('50 %', false); // grönt trots att prognosen (200 %) är över budget
     expect(within(portal()).getByText('Prognos', { selector: '.budget .label' }).closest('.budget')).toHaveClass(
       'over-budget',
     );
 
     for (const [hours, percent, red] of [
-      ['100', '100 %', false],
-      ['100,4', '100 %', false],
-      ['100,6', '101 %', true],
-      ['101', '101 %', true],
-      ['150', '150 %', true],
-      ['99', '99 %', false],
+      ['250', '100 %', false],
+      ['251', '100 %', false], // 100,4 %
+      ['252', '101 %', true], // 100,8 %
+      ['253', '101 %', true], // 101,2 %
+      ['375', '150 %', true],
+      ['247', '99 %', false], // 98,8 %
     ] as const) {
       await user.clear(input);
       await user.type(input, hours);

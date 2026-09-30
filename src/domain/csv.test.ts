@@ -22,7 +22,7 @@ function fixture(): AppData {
     name: 'Kalle; "K"',
     type: 'consultant',
     sectionId: 's2',
-    hourlyRate: 1000.5,
+    hourlyRate: 1000,
     monthlyHours: 100,
   });
   d = ops.addProductOwner(d, { id: 'po', name: 'Petra', sectionId: 's1' });
@@ -41,7 +41,7 @@ function fixture(): AppData {
     years: [2026, 2027],
   });
   d = ops.setEstimate(d, 'i1', 'anna', 2026, 2, 100);
-  d = ops.setEstimate(d, 'i2', 'anna', 2026, 2, 70.5);
+  d = ops.setEstimate(d, 'i2', 'anna', 2026, 2, 70);
   d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 10);
   d = ops.setActual(d, 'i1', 'anna', 2026, 2, 90);
   d = ops.setActual(d, 'i1', 'kalle', 2026, 0, 0); // rapporterat 0 h
@@ -69,13 +69,11 @@ describe('CSV-export för Excel', () => {
   it('räknar estimat, utfall, avvikelse, kostnad och överallokering, med decimalkomma', () => {
     const lines = parse(toAnalysisCsv(fixture()));
     expect(lines).toContain(
-      '2026;3;mars;Sektion 1;Petra;Portal;Anna;Sektion 1;Anställd;100;90;-10;650;65000;58500;160;170,5;Ja',
+      '2026;3;mars;Sektion 1;Petra;Portal;Anna;Sektion 1;Anställd;100;90;-10;650;65000;58500;160;170;Ja',
     );
+    expect(lines).toContain("2026;3;mars;Sektion 1;Petra;'=Formel;Anna;Sektion 1;Anställd;70;;;650;45500;;160;170;Ja");
     expect(lines).toContain(
-      "2026;3;mars;Sektion 1;Petra;'=Formel;Anna;Sektion 1;Anställd;70,5;;;650;45825;;160;170,5;Ja",
-    );
-    expect(lines).toContain(
-      '2026;1;januari;Sektion 1;Petra;Portal;"Kalle; ""K""";Sektion 2;Konsult;10;0;-10;1000,5;10005;0;100;10;Nej',
+      '2026;1;januari;Sektion 1;Petra;Portal;"Kalle; ""K""";Sektion 2;Konsult;10;0;-10;1000;10000;0;100;10;Nej',
     );
     expect(lines).toContain("2027;3;mars;Sektion 1;Petra;'=Formel;Anna;Sektion 1;Anställd;0;;;650;0;;160;0;Nej");
   });

@@ -14,23 +14,40 @@ describe('arbetsläge', () => {
     renderApp();
 
     await user.type(cell('Anna', 'januari', 'Portal'), '100');
-    await user.type(cell('Anna', 'februari', 'Portal'), '7,5');
+    await user.type(cell('Anna', 'februari', 'Portal'), '8');
     await user.type(cell('Kalle', 'januari', 'Portal'), '10');
 
     const portal = initiativeSection('Portal');
     const rows = within(portal).getAllByRole('row');
     const annaRow = rows.find((r) => within(r).queryByText('Anna'))!;
-    expect(annaRow).toHaveTextContent('107,5');
-    expect(annaRow).toHaveTextContent('69 875 kr'); // 107,5 × 650
+    expect(annaRow).toHaveTextContent('108');
+    expect(annaRow).toHaveTextContent('70 200 kr'); // 108 × 650
 
     const footer = rows.find((r) => within(r).queryByText('Summa'))!;
     expect(footer).toHaveTextContent('110'); // januari: 100 + 10
-    expect(footer).toHaveTextContent('117,5');
-    expect(footer).toHaveTextContent('79 875 kr'); // 69 875 + 10 × 1000
+    expect(footer).toHaveTextContent('118');
+    expect(footer).toHaveTextContent('80 200 kr'); // 70 200 + 10 × 1000
 
     // Sparas i localStorage.
     const stored = JSON.parse(localStorage.getItem(DATA_STORAGE_KEY)!) as { state: { data: AppData } };
-    expect(stored.state.data.estimates.portal?.anna?.[YEAR]?.slice(0, 2)).toEqual([100, 7.5]);
+    expect(stored.state.data.estimates.portal?.anna?.[YEAR]?.slice(0, 2)).toEqual([100, 8]);
+  });
+
+  it('tar bara emot heltal: decimaler markeras som ogiltiga och sparas inte', async () => {
+    // Cellen sparar medan man skriver: "7" sparas, "7," och "7,5" är ogiltiga och sparas inte.
+    const user = userEvent.setup();
+    renderApp();
+
+    const input = cell('Anna', 'januari', 'Portal');
+    await user.type(input, '7,5');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('title', 'Ange ett heltal som är 0 eller större');
+    expect(useDataStore.getState().data.estimates.portal?.anna?.[YEAR]?.[0]).toBe(7);
+
+    // När cellen lämnas visas det sparade heltalet igen.
+    await user.tab();
+    expect(input).toHaveValue('7');
+    expect(input).not.toHaveAttribute('aria-invalid');
   });
 
   it('markerar överallokering rött i alla initiativ där personen förekommer', async () => {

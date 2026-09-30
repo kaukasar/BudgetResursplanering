@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Modal } from '../../components/Modal';
 import { SectionSelect } from '../../components/SectionSelect';
-import { formatHours, formatInputNumber, formatSek, parseOptionalNonNegative } from '../../domain/format';
+import { formatHours, formatInputNumber, formatSek, parseOptionalWholeNumber } from '../../domain/format';
 import { PERSON_TYPE_LABEL, type Person, type PersonType } from '../../domain/types';
 import { useDataStore } from '../../store/store';
 
@@ -28,14 +28,15 @@ export function PersonForm({ person, onClose }: Props) {
   const [hours, setHours] = useState(formatInputNumber(person?.monthlyHours ?? null));
   const [error, setError] = useState<string | null>(null);
 
-  const parsedRate = parseOptionalNonNegative(rate);
-  const parsedHours = parseOptionalNonNegative(hours);
+  const parsedRate = parseOptionalWholeNumber(rate);
+  const parsedHours = parseOptionalWholeNumber(hours);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError('Ange ett namn.');
     if (!sectionId) return setError('Välj en sektion.');
-    if (!parsedRate.ok || !parsedHours.ok) return setError('Rätta de markerade fälten.');
+    if (!parsedRate.ok || !parsedHours.ok)
+      return setError('Timkostnad och arbetstid måste vara heltal som är 0 eller större.');
     const values = {
       name: name.trim(),
       type,
@@ -95,7 +96,7 @@ export function PersonForm({ person, onClose }: Props) {
             <span>Timkostnad (kr/h)</span>
             <input
               className={parsedRate.ok ? 'input' : 'input invalid'}
-              inputMode="decimal"
+              inputMode="numeric"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
               placeholder={`Standard: ${formatSek(settings[type].hourlyRate)}`}
@@ -105,7 +106,7 @@ export function PersonForm({ person, onClose }: Props) {
             <span>Normal arbetstid (h/mån)</span>
             <input
               className={parsedHours.ok ? 'input' : 'input invalid'}
-              inputMode="decimal"
+              inputMode="numeric"
               value={hours}
               onChange={(e) => setHours(e.target.value)}
               placeholder={`Standard: ${formatHours(settings[type].monthlyHours)} h`}

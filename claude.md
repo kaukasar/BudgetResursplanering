@@ -38,8 +38,8 @@ Applikationen har två huvudsakliga lägen:
 * Namn (sträng)
 * Typ: `Anställd` eller `Konsult`
 * Sektion (exakt 1 sektion, personens hemsektion). Personen kan ändå kopplas till initiativ i andra sektioner ("lånas ut").
-* Timkostnad/Timpris (numeriskt värde i SEK/h)
-* Normal arbetstid per månad (t.ex. 160 timmar/månad)
+* Timkostnad/Timpris (heltal i SEK/h)
+* Normal arbetstid per månad (heltal, t.ex. 160 timmar/månad)
 
 
 
@@ -59,7 +59,7 @@ Applikationen har två huvudsakliga lägen:
 * Sektion: väljs inte separat utan är alltid densamma som produktägarens sektion.
 * Kopplad Personal (Minst 1 person). Personal från andra sektioner än initiativets får kopplas.
 * År (Ett eller flera relevanta kalenderår)
-* Budget (frivillig): totalbudget i SEK för initiativets alla år. Om budget anges måste den vara större än 0.
+* Budget (frivillig): totalbudget i SEK för initiativets alla år. Om budget anges måste den vara ett heltal större än 0.
 * Tajmaklass (frivillig): ett av värdena `IMM`, `Vidareutveckling` eller `Drift`, eller tomt. Standardvärdet är tomt.
 
 
@@ -68,7 +68,7 @@ Applikationen har två huvudsakliga lägen:
 
 * **Egenskaper:**
 * Koppling till: Initiativ + Personal + År + Månad (Jan–Dec)
-* Planerat antal timmar (numeriskt värde $\ge 0$)
+* Planerat antal timmar (heltal $\ge 0$)
 
 
 
@@ -76,7 +76,7 @@ Applikationen har två huvudsakliga lägen:
 
 * **Egenskaper:**
 * Koppling till: Initiativ + Personal + År + Månad (Jan–Dec)
-* Faktiskt nedlagt antal timmar (numeriskt värde $\ge 0$), **eller inget värde** (= utfall ej rapporterat). "Ej rapporterat" skiljer sig från rapporterade 0 timmar.
+* Faktiskt nedlagt antal timmar (heltal $\ge 0$), **eller inget värde** (= utfall ej rapporterat). "Ej rapporterat" skiljer sig från rapporterade 0 timmar.
 * Utfall kan endast rapporteras för personer som är kopplade till initiativet, och för initiativets år.
 * Utfall kan rapporteras för alla månader (inga låsta eller stängda perioder).
 
@@ -137,6 +137,11 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Redigera initiativets namn, byta produktägare samt lägga till/ta bort kopplad personal.
 * Ett befintligt initiativ kan bara byta till en produktägare **i samma sektion**.
 * Personal från andra sektioner kan kopplas och markeras då som inlånad.
+* **Sektionsfilter för personal:** I formuläret för att skapa och redigera initiativ kan personallistan filtreras på sektion, så att listan inte blir för lång när det finns många sektioner.
+* Filtret visar en knapp per sektion som har personal (samt initiativets egen sektion). Personal från minst en sektion visas alltid, som mest från alla: den sista valda sektionen går inte att avmarkera. Knappen **Alla sektioner** visar personal från samtliga sektioner.
+* **Standard:** endast personal i produktägarens sektion visas. För ett nytt initiativ där produktägare ännu inte är vald visas personal från alla sektioner; när produktägaren väljs eller byts visas i stället den produktägarens sektion.
+* Personal som redan är kopplad till initiativet visas alltid, även om deras sektion är bortfiltrerad. En person som avmarkeras ligger kvar i listan tills formuläret stängs, så att valet kan ångras.
+* Filtret visas bara när fler än en sektion har personal. Valet sparas inte mellan gångerna formuläret öppnas.
 * Ange, ändra eller ta bort initiativets budget (frivillig uppgift). Budgeten anges endast i adminläget.
 * Välja initiativets **Tajmaklass** i en lista med värdena: tomt ("– (ingen)"), IMM, Vidareutveckling, Drift. Nya initiativ har tomt värde som standard och kan skapas med tomt värde. Värdet kan ändras och tas bort (sättas till tomt) i efterhand.
 * Initiativlistan i adminläget har en kolumn Tajmaklass ("–" när värdet är tomt).
@@ -151,7 +156,8 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * En rad per initiativ, person, år och månad. Alla kopplade personer och initiativets alla år tas med, även månader med 0 timmar.
 * Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (hemsektion), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
 * Utfall (h), Avvikelse (h) (= utfall − estimat) och Utfallskostnad (kr) lämnas tomma för månader utan rapporterat utfall.
-* Anpassad för svensk Excel: semikolon som avgränsare, decimalkomma utan tusentalsavgränsare och UTF-8 med BOM, så att filen kan öppnas direkt med dubbelklick.
+* Alla tal i filen är heltal (se 5.4), utan tusentalsavgränsare.
+* Anpassad för svensk Excel: semikolon som avgränsare och UTF-8 med BOM, så att filen kan öppnas direkt med dubbelklick.
 
 
 
@@ -250,6 +256,12 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * Det ska gå att ta bort personal från ett initiativ i adminläget tills det inte finns någon personal kvar (eller tills initiativet tas bort).
 
 
+4. **Endast heltal:**
+* Systemet hanterar endast heltal. Alla tal som matas in – pengar (timkostnad, budget) såväl som tid (estimat, utfall, arbetstid) – är heltal som är 0 eller större (budget större än 0).
+* Inmatning med decimaler (t.ex. "7,5") godtas inte: fältet markeras som ogiltigt och värdet sparas inte.
+* Alla tal som presenteras visas som heltal. Ger en beräkning decimaler (t.ex. procent av budget, avvikelse i procent) avrundas resultatet till närmaste heltal när det visas; själva beräkningen görs med full precision. Samma gäller CSV-exporten.
+
+
 
 ---
 
@@ -257,5 +269,5 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 * **Gränssnitt (UI):** Enkelt, funktionellt, reaktivt UI så att summo- och kostnadsberäkningar uppdateras direkt vid inmatning utan att sidan laddas om.
 * **Tillstånd & Lagring:** Enkel och direkt lagring, någon form av localstorage. Applikationen kommer att hantera en liten datamängd och skall ej ha någon databas eller backend. Informationen som matas in i applikationen måste lagras persistent.
-* **Bakåtkompatibilitet:** Data från tidigare versioner utan sektioner (sparad data eller importerad fil) flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde.
+* **Bakåtkompatibilitet:** Data från tidigare versioner utan sektioner (sparad data eller importerad fil) flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde. Decimaltal i äldre data (timmar, timkostnad, arbetstid och budget) avrundas till närmaste heltal vid inläsning och import.
 * **Säkerhet** Ingen inloggning eller autentisering. Alla som har länken ska kunna utnyttja alla features.

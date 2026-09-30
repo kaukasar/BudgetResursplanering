@@ -2,9 +2,16 @@ import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
 import { Modal } from '../../components/Modal';
 import { hoursLostByUpdate, storedHoursForPersonInInitiative, type HoursLoss } from '../../domain/calc';
-import { formatInputNumber, hoursPairText, parseOptionalNonNegative } from '../../domain/format';
+import { formatInputNumber, hoursPairText, parseOptionalWholeNumber } from '../../domain/format';
 import { compareByName, compareValues, sortByName } from '../../domain/sorting';
-import { PERSON_TYPE_LABEL, TAJMA_CLASSES, type AppData, type Initiative, type TajmaClass } from '../../domain/types';
+import {
+  PERSON_TYPE_LABEL,
+  TAJMA_CLASSES,
+  type AppData,
+  type Initiative,
+  type Person,
+  type TajmaClass,
+} from '../../domain/types';
 import { useDataStore } from '../../store/store';
 import { personName, sectionName } from '../labels';
 
@@ -35,6 +42,11 @@ function yearChoices(currentYear: number, ...selectedYears: number[][]): number[
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
+/** Personal i de visade sektionerna, plus personer som alltid ska visas oavsett filter. */
+function visiblePeople(people: Person[], shownSectionIds: string[], alwaysVisibleIds: string[]): Person[] {
+  return people.filter((person) => shownSectionIds.includes(person.sectionId) || alwaysVisibleIds.includes(person.id));
+}
+
 export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
   const data = useDataStore((state) => state.data);
   const addInitiative = useDataStore((state) => state.addInitiative);
@@ -43,17 +55,28 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
   const isNew = !initiative;
   const currentYear = new Date().getFullYear();
 
+  const sectionOfOwner = (id: string) => data.productOwners.find((owner) => owner.id === id)?.sectionId;
+  // Standard: personal i produktägarens sektion. Utan vald produktägare visas alla sektioner.
+  const defaultShownSections = (id: string) => {
+    const sectionId = sectionOfOwner(id);
+    return sectionId ? [sectionId] : data.sections.map((section) => section.id);
+  };
+
   const [name, setName] = useState(initiative?.name ?? '');
   const [ownerId, setOwnerId] = useState(initiative?.productOwnerId ?? defaultOwnerId ?? '');
+  const [shownSectionIds, setShownSectionIds] = useState<string[]>(() => defaultShownSections(ownerId));
   const [years, setYears] = useState<number[]>(initiative?.years ?? [currentYear]);
   const [personIds, setPersonIds] = useState<string[]>(initiative?.personIds ?? []);
+  // Kopplad personal visas alltid, även från bortfiltrerade sektioner. Den som avmarkeras ligger kvar
+  // i listan tills formuläret stängs, så att det går att ångra.
+  const [pinnedPersonIds, setPinnedPersonIds] = useState<string[]>(initiative?.personIds ?? []);
   const [extraYear, setExtraYear] = useState('');
   const [budget, setBudget] = useState(formatInputNumber(initiative?.budget ?? null));
   // Tom sträng = ingen tajmaklass (standard för nya initiativ).
   const [tajmaClass, setTajmaClass] = useState<TajmaClass | ''>(initiative?.tajmaClass ?? '');
   const [error, setError] = useState<string | null>(null);
 
-  const parsedBudget = parseOptionalNonNegative(budget);
+  const parsedBudget = parseOptionalWholeNumber(budget);
   const budgetInvalid = !parsedBudget.ok || parsedBudget.value === 0;
 
   // Initiativets sektion följer produktägaren. Ett befintligt initiativ kan bara byta till en
@@ -68,12 +91,30 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
       owners: sortByName(data.productOwners.filter((owner) => owner.sectionId === section.id)),
     }))
     .filter((group) => group.owners.length > 0);
-  const selectedSectionId = data.productOwners.find((owner) => owner.id === ownerId)?.sectionId;
+  const selectedSectionId = sectionOfOwner(ownerId);
   // Personal i initiativets sektion först, därefter personal som lånas in från andra sektioner.
   const isBorrowed = (sectionId: string) => Boolean(selectedSectionId) && sectionId !== selectedSectionId;
-  const people = [...data.people].sort(
+  const people = visiblePeople(data.people, shownSectionIds, pinnedPersonIds).sort(
     (a, b) => compareValues(Number(isBorrowed(a.sectionId)), Number(isBorrowed(b.sectionId))) || compareByName(a, b),
   );
+
+  // Sektionsfiltret visar sektioner som har personal, plus initiativets egen sektion.
+  const filterSections = sortByName(data.sections).filter(
+    (section) => section.id === selectedSectionId || data.people.some((person) => person.sectionId === section.id),
+  );
+  const isShown = (sectionId: string) => shownSectionIds.includes(sectionId);
+  const shownFilterCount = filterSections.filter((section) => isShown(section.id)).length;
+  const allSectionsShown = shownFilterCount === filterSections.length;
+
+  const togglePerson = (personId: string) => {
+    setPersonIds((current) => toggle(current, personId));
+    setPinnedPersonIds((current) => (current.includes(personId) ? current : [...current, personId]));
+  };
+
+  const changeOwner = (id: string) => {
+    setOwnerId(id);
+    setShownSectionIds(defaultShownSections(id));
+  };
 
   const addExtraYear = () => {
     const year = Number(extraYear);
@@ -88,7 +129,7 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
     if (!ownerId) return 'Välj en produktägare.';
     if (years.length === 0) return 'Välj minst ett år.';
     if (isNew && personIds.length === 0) return 'Koppla minst en person till initiativet.';
-    if (budgetInvalid) return 'Budget måste vara ett belopp större än 0, eller lämnas tom.';
+    if (budgetInvalid) return 'Budget måste vara ett heltal större än 0, eller lämnas tom.';
     return null;
   };
 
@@ -168,7 +209,7 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
               className="select"
               aria-label="Produktägare"
               value={ownerId}
-              onChange={(e) => setOwnerId(e.target.value)}
+              onChange={(e) => changeOwner(e.target.value)}
             >
               <option value="" disabled>
                 Välj produktägare…
@@ -194,7 +235,7 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
             <span>Budget (kr, frivillig)</span>
             <input
               className={budgetInvalid ? 'input invalid' : 'input'}
-              inputMode="decimal"
+              inputMode="numeric"
               placeholder="Ingen budget"
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
@@ -263,8 +304,39 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
               ({personIds.length} valda{isNew ? ', minst 1' : ''})
             </span>
           </legend>
-          {people.length === 0 ? (
+          {filterSections.length > 1 && (
+            <div className="chips section-filter" role="group" aria-label="Visa personal från sektion">
+              <span className="small muted">Visa personal från:</span>
+              {filterSections.map((section) => {
+                // Minst en sektion ska alltid visas, så den sista valda går inte att avmarkera.
+                const onlyShown = isShown(section.id) && shownFilterCount === 1;
+                return (
+                  <label key={section.id} className={isShown(section.id) ? 'chip checked' : 'chip'}>
+                    <input
+                      type="checkbox"
+                      checked={isShown(section.id)}
+                      disabled={onlyShown}
+                      title={onlyShown ? 'Minst en sektion måste visas' : undefined}
+                      onChange={() => setShownSectionIds((current) => toggle(current, section.id))}
+                    />
+                    {section.name}
+                  </label>
+                );
+              })}
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={allSectionsShown}
+                onClick={() => setShownSectionIds(data.sections.map((section) => section.id))}
+              >
+                Alla sektioner
+              </button>
+            </div>
+          )}
+          {data.people.length === 0 ? (
             <div className="notice">Det finns ingen personal. Lägg till personal först.</div>
+          ) : people.length === 0 ? (
+            <div className="notice">Det finns ingen personal i de valda sektionerna.</div>
           ) : (
             <div className="check-list">
               {people.map((person) => {
@@ -279,7 +351,7 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
                     <input
                       type="checkbox"
                       checked={personIds.includes(person.id)}
-                      onChange={() => setPersonIds((current) => toggle(current, person.id))}
+                      onChange={() => togglePerson(person.id)}
                     />
                     <span>{person.name}</span>
                     <span className={`tag ${person.type}`}>{PERSON_TYPE_LABEL[person.type]}</span>

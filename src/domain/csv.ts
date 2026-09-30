@@ -29,7 +29,8 @@ export const CSV_COLUMNS = [
 ] as const;
 
 /** Tal med decimalkomma och utan tusentalsavgränsare, så att svensk Excel tolkar det som ett tal. */
-const excelNumber = (value: number) => String(Math.round(value * 100) / 100).replace('.', ',');
+/** Appen visar bara heltal; beräknade värden avrundas till närmaste heltal. */
+const excelNumber = (value: number) => String(Math.round(value));
 
 /** Citerar vid behov och neutraliserar text som Excel annars kan tolka som en formel. */
 function excelText(value: string): string {

@@ -65,7 +65,7 @@ describe('utfall', () => {
     const before = snapshot(d);
 
     // Deterministisk "slumpföljd" av utfall: över, under, 0, borttaget, långt över budget.
-    const values = [0, 7.5, 300, null, 1, 999, null, 42];
+    const values = [0, 7, 300, null, 1, 999, null, 42];
     let step = 0;
     for (const [iid, pid, year] of [
       ['i1', 'anna', 2026],
@@ -118,18 +118,18 @@ describe('utfall', () => {
   });
 
   it('utfallet räknas som över budget från 101 % (avrundat som i gränssnittet), oberoende av prognosen', () => {
-    // Kalle kostar 1 000 kr/h och budgeten är 100 000 kr, så 1 h = 1 %.
-    let d = ops.updateInitiative(domainFixture(), 'i1', { budget: 100_000 });
-    d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 200); // prognos 200 % – över budget
+    // Kalle kostar 1 000 kr/h och budgeten är 250 000 kr, så 1 h = 0,4 %.
+    let d = ops.updateInitiative(domainFixture(), 'i1', { budget: 250_000 });
+    d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 500); // prognos 200 % – över budget
     const status = (hours: number) =>
       calculateBudgetStatus(ops.setActual(d, 'i1', 'kalle', 2026, 0, hours), d.initiatives[0]!)!;
 
-    expect(status(50)).toMatchObject({ actualPercent: 50, actualOverBudget: false, overBudget: true });
-    expect(status(100).actualOverBudget).toBe(false);
-    expect(status(100.4).actualOverBudget).toBe(false); // visas som "100 %"
-    expect(status(100.6).actualOverBudget).toBe(true); // visas som "101 %"
-    expect(status(101).actualOverBudget).toBe(true);
-    expect(status(250).actualOverBudget).toBe(true);
+    expect(status(125)).toMatchObject({ actualPercent: 50, actualOverBudget: false, overBudget: true });
+    expect(status(250).actualOverBudget).toBe(false); // 100 %
+    expect(status(251).actualOverBudget).toBe(false); // 100,4 % visas som "100 %"
+    expect(status(252).actualOverBudget).toBe(true); // 100,8 % visas som "101 %"
+    expect(status(253).actualOverBudget).toBe(true); // 101,2 %
+    expect(status(625).actualOverBudget).toBe(true); // 250 %
   });
 
   it('"fyll från estimat" fyller bara tomma månader t.o.m. angiven månad', () => {
@@ -158,7 +158,7 @@ describe('utfall', () => {
   it('sparas och läses in via JSON; äldre data utan utfall får tomt utfall', () => {
     let d = domainFixture();
     d = ops.setActual(d, 'i1', 'anna', 2026, 0, 0);
-    d = ops.setActual(d, 'i1', 'anna', 2026, 1, 7.5);
+    d = ops.setActual(d, 'i1', 'anna', 2026, 1, 8);
     expect(parseAppData(JSON.parse(JSON.stringify(d)))).toEqual(d);
 
     const { actuals: _a, ...old } = d;
