@@ -1,9 +1,15 @@
 import * as ops from '../domain/operations';
-import { emptyData, type AppData } from '../domain/types';
+import { emptyData, type AppData, type Settings } from '../domain/types';
+
+/** Fasta standardvärden för testerna, oberoende av appens egna standardvärden. */
+export const TEST_SETTINGS: Settings = {
+  employee: { hourlyRate: 650, monthlyHours: 160 },
+  consultant: { hourlyRate: 1100, monthlyHours: 160 },
+};
 
 /** Bygger en liten testdatamängd: 2 personer, 1 produktägare, 2 initiativ år 2026. */
 export function domainFixture(): AppData {
-  let d = emptyData();
+  let d: AppData = { ...emptyData(), settings: structuredClone(TEST_SETTINGS) };
   d = ops.addSection(d, { id: 's1', name: 'Sektion 1' });
   d = ops.addSection(d, { id: 's2', name: 'Sektion 2' });
   d = ops.addPerson(d, {

@@ -4,13 +4,14 @@ import { ConfirmProvider } from '../components/Confirm';
 import * as ops from '../domain/operations';
 import { emptyData, type AppData } from '../domain/types';
 import { useDataStore } from '../store/store';
+import { TEST_SETTINGS } from './domainFixture';
 import { DEFAULT_ADMIN_SORT, useUiStore } from '../store/ui';
 
 export const YEAR = 2026;
 
 /** Anna (anställd, 650 kr/h, 160 h) och Kalle (konsult, 1000 kr/h, 100 h). Två initiativ hos Petra, Olle har inga. */
 export function seed(): AppData {
-  let d = emptyData();
+  let d: AppData = { ...emptyData(), settings: structuredClone(TEST_SETTINGS) };
   d = ops.addSection(d, { id: 's1', name: 'Sektion 1' });
   d = ops.addSection(d, { id: 's2', name: 'Sektion 2' });
   d = ops.addPerson(d, {

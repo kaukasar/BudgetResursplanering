@@ -165,7 +165,7 @@ Behörighet
   + gemensamma kolumner
 
   Tabellen har exakt två rader, som skapas vid installationen med appens standardvärden:
-  Anställd 650 kr/h och 160 h/mån, Konsult 1 100 kr/h och 160 h/mån. Backend tillåter bara att
+  Anställd 625 kr/h och 160 h/mån, Konsult 1 130 kr/h och 160 h/mån. Backend tillåter bara att
   värdena ändras, inte att typer läggs till eller tas bort.
 
   Motivering: den globala inställningen per typ (3.2) är en egenskap hos typen. Samma tabell

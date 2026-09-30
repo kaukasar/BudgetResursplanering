@@ -119,6 +119,7 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Redigera befintlig personal och deras egenskaper, inklusive byte av sektion.
 * Radera personal.
 * Det ska finnas en global inställning för samtlig personal som anger hur mycket en konsult respektive anställd kostar samt hur många timmar per månad de förväntas att arbeta. Inställningen är gemensam för alla sektioner.
+* **Förifyllda standardvärden:** Anställd 625 kr/h och Konsult 1 130 kr/h, båda med 160 timmar per månad. Värdena gäller tills de ändras under Inställningar, och för alla personer som saknar egen timkostnad eller arbetstid.
 
 ### 3.3 Hantering av Produktägare
 

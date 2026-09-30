@@ -11,8 +11,16 @@ import {
   summarizeInitiative,
 } from './calc';
 import * as ops from './operations';
+import { emptyData } from './types';
 
 describe('ekonomiberäkning', () => {
+  it('har förifyllda standardvärden: anställd 625 kr/h, konsult 1 130 kr/h, båda 160 h/mån', () => {
+    expect(emptyData().settings).toEqual({
+      employee: { hourlyRate: 625, monthlyHours: 160 },
+      consultant: { hourlyRate: 1130, monthlyHours: 160 },
+    });
+  });
+
   it('ärver timkostnad och arbetstid från typen om personen saknar egna värden', () => {
     const d = domainFixture();
     const anna = d.people.find((p) => p.id === 'anna')!;

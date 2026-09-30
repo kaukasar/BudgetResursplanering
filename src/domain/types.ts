@@ -95,8 +95,8 @@ export const MONTHS_LONG = [
 ] as const;
 
 export const DEFAULT_SETTINGS: Settings = {
-  employee: { hourlyRate: 650, monthlyHours: 160 },
-  consultant: { hourlyRate: 1100, monthlyHours: 160 },
+  employee: { hourlyRate: 625, monthlyHours: 160 },
+  consultant: { hourlyRate: 1130, monthlyHours: 160 },
 };
 
 export function emptyData(): AppData {

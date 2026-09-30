@@ -2,10 +2,11 @@
 import { describe, expect, it } from 'vitest';
 import { CSV_COLUMNS, toAnalysisCsv } from './csv';
 import * as ops from './operations';
+import { TEST_SETTINGS } from '../test/domainFixture';
 import { emptyData, type AppData } from './types';
 
 function fixture(): AppData {
-  let d = emptyData();
+  let d: AppData = { ...emptyData(), settings: structuredClone(TEST_SETTINGS) };
   d = ops.addSection(d, { id: 's1', name: 'Sektion 1' });
   d = ops.addSection(d, { id: 's2', name: 'Sektion 2' });
   d = ops.addPerson(d, {
