@@ -181,9 +181,6 @@ describe('adminläge', () => {
       ['Produktägare', 'stigande', ['Arkiv', 'App', 'Portal', 'Lager']], // Olle, Petra, Petra, Stina
       ['År', 'stigande', ['Lager', 'App', 'Portal', 'Arkiv']], // 2025–2026, 2026, 2026, 2027
       ['Personal', 'stigande', ['App', 'Portal', 'Arkiv', 'Lager']], // Anna, "Anna, Kalle", Kalle, Östen
-      ['Estimat', 'stigande', ['Arkiv', 'Lager', 'Portal', 'App']], // 0, 5, 10, 30
-      ['Estimat', 'fallande', ['App', 'Portal', 'Lager', 'Arkiv']],
-      ['Utfall', 'stigande', ['App', 'Arkiv', 'Portal', 'Lager']], // 0, 0, 0, 3
       ['Budget', 'stigande', ['Arkiv', 'Lager', 'App', 'Portal']], // utan budget sist
       ['Budget', 'fallande', ['Lager', 'Arkiv', 'App', 'Portal']], // utan budget sist även fallande
       ['Namn', 'stigande', ['App', 'Arkiv', 'Lager', 'Portal']],
@@ -192,6 +189,17 @@ describe('adminläge', () => {
       await sortBy(label, direction);
       expect(names(), `${label} ${direction}`).toEqual(expected);
     }
+    // Initiativlistan visar inte estimat och utfall.
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.replace(/[▲▼↕]/g, ''))).toEqual([
+      'Namn',
+      'Sektion',
+      'Produktägare',
+      'Tajmaklass',
+      'År',
+      'Personal',
+      'Budget',
+      'Åtgärder',
+    ]);
   });
 
   it('tajmaklass är tom som standard, kan väljas i adminläget och visas i arbetsvyn endast när den är satt', async () => {

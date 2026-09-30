@@ -137,3 +137,61 @@ describe('arbetsläge', () => {
     expect(screen.getByText(/Petra har inga initiativ för 2027/)).toBeInTheDocument();
   });
 });
+
+describe('nyckeltalet budget', () => {
+  const statLabels = () => [...document.querySelectorAll('.stat .label')].map((l) => l.textContent);
+  const budgetFigure = () => [...document.querySelectorAll('.stat')].at(-1)!;
+
+  it('visas längst till höger i alla vyer och summerar budgeten för de visade initiativen', async () => {
+    let d = seed();
+    d = ops.updateInitiative(d, 'portal', { budget: 300_000 });
+    d = ops.updateInitiative(d, 'app', { budget: 200_000 });
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp();
+
+    for (const view of ['Estimat', 'Utfall', 'Jämförelse']) {
+      await user.click(screen.getByRole('button', { name: view }));
+      expect(statLabels().at(-1)).toBe('Budget');
+      expect(budgetFigure()).toHaveTextContent('500 000 kr');
+    }
+    expect(budgetFigure()).toHaveAttribute(
+      'title',
+      'Summan av budgeten för de visade initiativen. 2 av 2 initiativ har budget.',
+    );
+  });
+
+  it('följer filtret, räknar inte initiativ utan budget och anger när budgeten gäller flera år', async () => {
+    let d = seed();
+    d = ops.updateInitiative(d, 'portal', { budget: 300_000, years: [YEAR, YEAR + 1] });
+    d = ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+    d = ops.addInitiative(d, {
+      id: 'lager',
+      name: 'Lager',
+      productOwnerId: 'stina',
+      personIds: ['anna'],
+      years: [YEAR],
+    });
+    d = ops.updateInitiative(d, 'lager', { budget: 50_000 });
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(statLabels().at(-1)).toBe('Budget (alla år)'); // Portal gäller två år
+    expect(budgetFigure()).toHaveTextContent('350 000 kr'); // App saknar budget
+    expect(budgetFigure()).toHaveAttribute(
+      'title',
+      'Summan av budgeten för de visade initiativen. 2 av 3 initiativ har budget.',
+    );
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sektion' }), 'Sektion 2');
+    expect(statLabels().at(-1)).toBe('Budget');
+    expect(budgetFigure()).toHaveTextContent('50 000 kr');
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sektion' }), 'Sektion 1');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Produktägare' }), 'Petra');
+    d = ops.updateInitiative(useDataStore.getState().data, 'portal', { budget: null });
+    useDataStore.setState({ data: d });
+    expect(await screen.findByText('–', { selector: '.stat .value' })).toBeInTheDocument(); // ingen budget alls
+  });
+});

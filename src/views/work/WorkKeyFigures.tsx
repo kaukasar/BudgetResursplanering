@@ -1,9 +1,9 @@
 import { KeyFigure } from '../../components/KeyFigure';
 import { countOverallocatedMonths, personCapacity, summarizeInitiative } from '../../domain/calc';
-import { compareInitiative, sumDeviations } from '../../domain/comparison';
-import { formatHours, formatSek, formatSignedHours } from '../../domain/format';
+import { formatHours, formatSek } from '../../domain/format';
 import type { AppData, Initiative, Measure, Person } from '../../domain/types';
 import type { WorkView } from '../../store/ui';
+import { MISSING } from '../labels';
 
 interface Props {
   data: AppData;
@@ -30,7 +30,7 @@ export function WorkKeyFigures({ data, initiatives, people, year, view }: Props)
     <div className="stats">
       <KeyFigure className="card stat" label="Initiativ" value={String(initiatives.length)} />
       {view === 'compare' ? (
-        <CompareFigures data={data} initiatives={initiatives} year={year} totals={totals} />
+        <CompareFigures year={year} totals={totals} />
       ) : (
         <MeasureFigures
           year={year}
@@ -39,6 +39,7 @@ export function WorkKeyFigures({ data, initiatives, people, year, view }: Props)
           overallocatedCount={overallocatedCount(view)}
         />
       )}
+      <BudgetFigure initiatives={initiatives} />
     </div>
   );
 }
@@ -71,15 +72,11 @@ function MeasureFigures({ year, measure, totals, overallocatedCount }: MeasureFi
 }
 
 interface CompareFiguresProps {
-  data: AppData;
-  initiatives: Initiative[];
   year: number;
   totals: (measure: Measure) => { hours: number; cost: number };
 }
 
-function CompareFigures({ data, initiatives, year, totals }: CompareFiguresProps) {
-  const deviation = sumDeviations(initiatives.map((initiative) => compareInitiative(data, initiative, year).deviation));
-  const deviationPercent = deviation.percent === null ? '' : ` (${formatSignedHours(Math.round(deviation.percent))} %)`;
+function CompareFigures({ year, totals }: CompareFiguresProps) {
   const estimate = totals('estimate');
   const actual = totals('actual');
 
@@ -87,12 +84,6 @@ function CompareFigures({ data, initiatives, year, totals }: CompareFiguresProps
     <>
       <KeyFigure className="card stat" label={`Estimat ${year}`} value={`${formatHours(estimate.hours)} h`} />
       <KeyFigure className="card stat" label={`Utfall ${year}`} value={`${formatHours(actual.hours)} h`} />
-      <KeyFigure
-        className="card stat"
-        label="Avvikelse mot estimat"
-        title="Utfall minus estimat, för månader med rapporterat utfall"
-        value={`${formatSignedHours(deviation.diff)} h${deviationPercent}`}
-      />
       <KeyFigure
         className="card stat"
         label={`Prognos kostnad ${year}`}
@@ -106,5 +97,22 @@ function CompareFigures({ data, initiatives, year, totals }: CompareFiguresProps
         value={formatSek(actual.cost)}
       />
     </>
+  );
+}
+
+/**
+ * Summan av budgeten för de visade initiativen. Budgeten gäller initiativets alla år, till skillnad
+ * från övriga nyckeltal som gäller valt år; det anges i etiketten när något initiativ gäller flera år.
+ */
+function BudgetFigure({ initiatives }: { initiatives: Initiative[] }) {
+  const budgets = initiatives.flatMap((initiative) => (initiative.budget ? [initiative.budget] : []));
+  const coversSeveralYears = initiatives.some((initiative) => initiative.budget && initiative.years.length > 1);
+  return (
+    <KeyFigure
+      className="card stat"
+      label={coversSeveralYears ? 'Budget (alla år)' : 'Budget'}
+      title={`Summan av budgeten för de visade initiativen. ${budgets.length} av ${initiatives.length} initiativ har budget.`}
+      value={budgets.length > 0 ? formatSek(budgets.reduce((total, budget) => total + budget, 0)) : MISSING}
+    />
   );
 }

@@ -65,7 +65,7 @@ describe('estimat och utfall', () => {
     expect(within(annaRow).queryByRole('button', { name: 'Fyll från estimat' })).toBeNull();
   });
 
-  it('visar samma avvikelse i initiativhuvud, summarad och nyckeltal vid delvis rapportering', async () => {
+  it('visar samma avvikelse i initiativhuvud och summarad vid delvis rapportering, men inte som nyckeltal', async () => {
     // Anna och Kalle har estimat i januari, men bara Anna har rapporterat utfall.
     let d = seed();
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100);
@@ -78,9 +78,9 @@ describe('estimat och utfall', () => {
 
     const portal = initiativeSection('Portal');
     const headerDeviation = within(portal).getByText(`Avvikelse ${YEAR}`, { selector: '.label' });
-    const statDeviation = screen.getByText('Avvikelse mot estimat', { selector: '.stat .label' });
     expect(headerDeviation.nextElementSibling).toHaveTextContent('−10 h');
-    expect(statDeviation.nextElementSibling).toHaveTextContent('−10 h (−10 %)');
+    // Nyckeltalet för avvikelse är borttaget.
+    expect(screen.queryByText('Avvikelse mot estimat')).toBeNull();
 
     const footer = within(portal).getAllByRole('row').at(-1)!;
     const footerCells = within(footer).getAllByRole('cell');
@@ -179,7 +179,7 @@ describe('estimat och utfall', () => {
     const statValue = (label: string) =>
       screen.getByText(label, { selector: '.stat .label' }).nextElementSibling!.textContent;
     // Utfallskostnaden ligger direkt till höger om prognos kostnad (sist i raden).
-    expect(statLabels().slice(-2)).toEqual([`Prognos kostnad ${YEAR}`, `Utfallskostnad ${YEAR}`]);
+    expect(statLabels().slice(-3)).toEqual([`Prognos kostnad ${YEAR}`, `Utfallskostnad ${YEAR}`, 'Budget']);
     expect(statValue(`Prognos kostnad ${YEAR}`)).toBe('85 000 kr');
     expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('77 000 kr'); // 58 500 + 12 000 + 6 500
 

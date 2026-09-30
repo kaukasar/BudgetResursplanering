@@ -95,10 +95,10 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 | Sektioner | Namn |
 | Personal | Namn, Sektion, Typ, Timkostnad, Arbetstid/mån, Initiativ |
 | Produktägare | Namn, Sektion, Initiativ |
-| Initiativ | Samtliga: Namn, Sektion, Produktägare, Tajmaklass, År, Personal, Estimat, Utfall, Budget |
+| Initiativ | Samtliga: Namn, Sektion, Produktägare, Tajmaklass, År, Personal, Budget |
 
 * Text sorteras i svensk alfabetisk ordning (Å, Ä, Ö sist), skiljer inte på versaler och gemener och sorterar siffror i nummerordning ("Fas 2" före "Fas 10").
-* Belopp och timmar (Timkostnad, Arbetstid/mån, Estimat, Utfall, Budget) sorteras numeriskt. Timkostnad och arbetstid avser det värde som gäller för personen (eget värde eller standardvärdet för typen).
+* Belopp och timmar (Timkostnad, Arbetstid/mån, Budget) sorteras numeriskt. Timkostnad och arbetstid avser det värde som gäller för personen (eget värde eller standardvärdet för typen).
 * År sorteras på initiativets första år och därefter sista år.
 * Kolumnerna Initiativ och Personal sorteras på den visade listan, där namnen står i alfabetisk ordning.
 * Rader som saknar värde (t.ex. initiativ utan budget eller person utan initiativ) hamnar alltid sist, oavsett riktning.
@@ -144,7 +144,7 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Filtret visas bara när fler än en sektion har personal. Valet sparas inte mellan gångerna formuläret öppnas.
 * Ange, ändra eller ta bort initiativets budget (frivillig uppgift). Budgeten anges endast i adminläget.
 * Välja initiativets **Tajmaklass** i en lista med värdena: tomt ("– (ingen)"), IMM, Vidareutveckling, Drift. Nya initiativ har tomt värde som standard och kan skapas med tomt värde. Värdet kan ändras och tas bort (sättas till tomt) i efterhand.
-* Initiativlistan i adminläget har en kolumn Tajmaklass ("–" när värdet är tomt).
+* Initiativlistan i adminläget har kolumnerna Namn, Sektion, Produktägare, Tajmaklass ("–" när värdet är tomt), År, Personal och Budget. Estimat och utfall visas inte i adminläget utan i arbetsläget.
 * Radera initiativ:
 * Ett initiativ ska kunna raderas oavsett vilken information eller vilka timmar som finns kopplade till det.
 * När personal eller år tas bort från ett initiativ, eller när personal eller initiativ raderas, raderas både estimat och utfall. Bekräftelsedialogen visar hur många timmar av vardera som försvinner.
@@ -217,15 +217,19 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * Kolumnerna till höger: **Estimat h** (helår), **Utfall h** och **Avvikelse** (timmar och procent). Avvikelsen räknas endast på månader med rapporterat utfall.
 * Ett klick på pilen vid en person fäller ut en extra rad med estimatet per månad.
 * Tabellhuvudet visar för valt år, i ordning: **Avvikelse** (timmar), **Utfallskostnad** (initiativets totala kostnad för rapporterad tid, dvs. summan av alla personers rapporterade timmar × respektive persons timkostnad) och **Prognos** (estimerad kostnad). För initiativ med budget visas därefter budgetens utfall och prognos som i 4.3.
-* Nyckeltal visar, i ordning: antal initiativ, totalt estimat (h) och totalt utfall (h) för året bredvid varandra, avvikelse, **Prognos kostnad** (estimerad kostnad) och till höger om den **Utfallskostnad** (faktisk total kostnad: rapporterade timmar × respektive persons timkostnad). Nyckeltalen avser de initiativ som visas, dvs. följer års-, sektions- och produktägarfiltret. Kapacitetsöversikten visar estimatet.
+* Nyckeltal visar, i ordning: antal initiativ, totalt estimat (h) och totalt utfall (h) för året bredvid varandra, **Prognos kostnad** (estimerad kostnad) och till höger om den **Utfallskostnad** (faktisk total kostnad: rapporterade timmar × respektive persons timkostnad), och sist **Budget** (se 4.5). Nyckeltalen avser de initiativ som visas, dvs. följer års-, sektions- och produktägarfiltret. Kapacitetsöversikten visar estimatet.
 
 ### 4.5 Nyckeltal och kapacitetsöversikt per vy
 
 | Vy | Nyckeltal | Kapacitetsöversikt |
 |---|---|---|
-| Estimat | Initiativ, planerade timmar, planerad kostnad, överallokerade personmånader | Planerad tid |
-| Utfall | Initiativ, utfall (h), utfallskostnad, överallokerade personmånader (utfall) | Rapporterat utfall |
-| Jämförelse | Initiativ, estimat (h), utfall (h), avvikelse mot estimat (h och %), prognos kostnad (= estimerad kostnad), utfallskostnad (faktisk kostnad) | Estimat |
+| Estimat | Initiativ, planerade timmar, planerad kostnad, överallokerade personmånader, budget | Planerad tid |
+| Utfall | Initiativ, utfall (h), utfallskostnad, överallokerade personmånader (utfall), budget | Rapporterat utfall |
+| Jämförelse | Initiativ, estimat (h), utfall (h), prognos kostnad (= estimerad kostnad), utfallskostnad (faktisk kostnad), budget | Estimat |
+
+* Nyckeltalen visar ingen sammanlagd avvikelse mot estimat. Avvikelsen visas per person, månad och initiativ i jämförelsevyns tabeller (4.4).
+* **Budget** visas längst till höger i alla vyer: summan av budgeten för de initiativ som visas (följer års-, sektions- och produktägarfiltret). Initiativ utan budget räknas inte med; ett tips anger hur många av de visade initiativen som har budget. Saknar alla visade initiativ budget visas "–".
+* Budgeten är en totalbudget för initiativets alla år och räknas med i sin helhet, till skillnad från övriga nyckeltal som avser valt år. Gäller något av de visade initiativen med budget flera år heter nyckeltalet **Budget (alla år)**.
 
 
 

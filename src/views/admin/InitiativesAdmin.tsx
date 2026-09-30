@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { initiativeSectionId, storedHoursForInitiative } from '../../domain/calc';
-import { formatHours, formatSek } from '../../domain/format';
+import { initiativeSectionId } from '../../domain/calc';
+import { formatSek } from '../../domain/format';
 import { joinSorted, sortByName } from '../../domain/sorting';
 import type { AppData, Initiative } from '../../domain/types';
 import { useDataStore } from '../../store/store';
@@ -37,8 +37,6 @@ export function InitiativesAdmin() {
       // Första året avgör, därefter sista året (t.ex. 2026 före 2026–2027).
       years: (initiative) => initiative.years[0]! * 10_000 + initiative.years.at(-1)!,
       people: personNames,
-      estimate: (initiative) => storedHoursForInitiative(data, initiative.id, 'estimate'),
-      actual: (initiative) => storedHoursForInitiative(data, initiative.id, 'actual'),
       budget: (initiative) => initiative.budget ?? null,
     },
   );
@@ -98,8 +96,6 @@ export function InitiativesAdmin() {
                 {sortHeader('tajma', 'Tajmaklass')}
                 {sortHeader('years', 'År')}
                 {sortHeader('people', 'Personal')}
-                {sortHeader('estimate', 'Estimat', 'num')}
-                {sortHeader('actual', 'Utfall', 'num')}
                 {sortHeader('budget', 'Budget', 'num')}
                 <th>
                   <span className="sr-only">Åtgärder</span>
@@ -117,8 +113,6 @@ export function InitiativesAdmin() {
                   <td>{initiative.tajmaClass ?? <span className="muted">{MISSING}</span>}</td>
                   <td className="nowrap">{initiative.years.join(', ')}</td>
                   <td className="small">{personNames(initiative) || <span className="muted">Ingen personal</span>}</td>
-                  <td className="num">{formatHours(storedHoursForInitiative(data, initiative.id, 'estimate'))} h</td>
-                  <td className="num">{formatHours(storedHoursForInitiative(data, initiative.id, 'actual'))} h</td>
                   <td className="num">
                     {initiative.budget ? formatSek(initiative.budget) : <span className="muted">{MISSING}</span>}
                   </td>
