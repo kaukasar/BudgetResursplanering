@@ -27,6 +27,8 @@
   /* Avvikelse i jämförelsevyn: medvetet inte röd, som är reserverad för överallokering. */
   --dev-up: #b45309;
   --dev-down: var(--primary);
+  --editing: #b45309;
+  --editing-soft: #fef3e2;
   /* Budgetstapeln. */
   --bar-track: #e3e7ef;
   --bar-prognosis-faint: #c9d6f3;
@@ -204,6 +206,54 @@ select {
 }
 .link-btn.danger {
   color: var(--danger);
+}
+.link-btn:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+/* Skrivskyddade och avstängda textfält, t.ex. när redigering i adminläget är avstängd. */
+.input:read-only {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+/* Spärr mot oavsiktliga ändringar i adminläget: avstängd som standard. */
+.admin-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.edit-toggle:hover {
+  background: var(--surface-2);
+}
+.edit-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.edit-toggle.on {
+  border-color: var(--editing);
+  background: var(--editing-soft);
+  color: var(--editing);
+}
+/* Påslagen redigering markeras med en färgad list ovanför adminflikarna. */
+.admin.editing-enabled {
+  border-top: 3px solid var(--editing);
+  padding-top: 8px;
 }
 
 .segmented {

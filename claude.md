@@ -103,6 +103,17 @@ Ibland lägger personal utanför de ordinarie teamen och sektionerna tid på ett
 
 I adminläget ska administratörer kunna skapa, redigera och radera grundläggande entiteter och deras relationer.
 
+**Redigeringsspärr (skydd mot oavsiktliga ändringar):**
+
+* Överst i adminläget finns en växel som slår på respektive av möjligheten att ändra data. Knappen består endast av en låsikon: låst (🔒) när redigering är avstängd och öppen (🔓) när den är påslagen.
+* **Standard är avstängd.** Varje ny webbläsarflik startar med redigering avstängd.
+* Slås redigering på gäller det så länge sessionen pågår, dvs. **per webbläsarflik**: valet överlever att sidan laddas om men inte att fliken stängs.
+* När redigering är avstängd är allt som ändrar data låst: skapa, redigera och radera sektioner, personal, produktägare och initiativ (inklusive att flytta innehåll mellan sektioner), standardvärdena under Inställningar, samt import av JSON, Ladda exempeldata och Radera all data under fliken Data. Knapparna syns men är avstängda (utan förklarande ledtext), och fälten under Inställningar är skrivskyddade.
+* Det som bara läser data är alltid öppet: listor, sortering, filter och export av JSON och CSV.
+* När redigering är påslagen markeras adminläget med en färgad list, så att det är tydligt att data kan ändras.
+* Spärren gäller endast adminläget. Inmatning av estimat och utfall i arbetsläget påverkas inte.
+* Spärren är ett skydd mot misstag, inte en behörighetskontroll (se 6, Säkerhet).
+
 **Sortering:** Listorna i adminläget kan sorteras genom att klicka på en kolumnrubrik. Ett klick på en ny kolumn sorterar stigande (▲) på den; ett nytt klick på samma kolumn växlar till fallande (▼). Sorterbara kolumner visar en diskret ↕ tills de väljs.
 
 | Flik | Sorterbara kolumner |
@@ -294,4 +305,4 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * **Gränssnitt (UI):** Enkelt, funktionellt, reaktivt UI så att summo- och kostnadsberäkningar uppdateras direkt vid inmatning utan att sidan laddas om.
 * **Tillstånd & Lagring:** Enkel och direkt lagring, någon form av localstorage. Applikationen kommer att hantera en liten datamängd och skall ej ha någon databas eller backend. Informationen som matas in i applikationen måste lagras persistent.
 * **Bakåtkompatibilitet:** Data från tidigare versioner utan sektioner (sparad data eller importerad fil) flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde. Decimaltal i äldre data (timmar, timkostnad, arbetstid och budget) avrundas till närmaste heltal vid inläsning och import.
-* **Säkerhet** Ingen inloggning eller autentisering. Alla som har länken ska kunna utnyttja alla features.
+* **Säkerhet** Ingen inloggning eller autentisering. Alla som har länken ska kunna utnyttja alla features. Redigeringsspärren i adminläget (3) skyddar endast mot oavsiktliga ändringar; vem som helst kan slå på redigering.

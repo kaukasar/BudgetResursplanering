@@ -4,6 +4,7 @@ import { toAnalysisCsv } from '../../domain/csv';
 import { plural } from '../../domain/format';
 import { parseAppData, toExportFile } from '../../domain/serialization';
 import { emptyData, type AppData } from '../../domain/types';
+import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { useLoadSample } from '../useLoadSample';
 
@@ -35,6 +36,8 @@ function downloadFile(content: string, filename: string, type: string) {
 export function DataAdmin() {
   const data = useDataStore((state) => state.data);
   const replaceData = useDataStore((state) => state.replaceData);
+  // Export är bara läsning; import, exempeldata och radering ändrar data och kräver påslagen redigering.
+  const canEdit = useCanEdit();
   const confirm = useConfirm();
   const loadSample = useLoadSample();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -135,21 +138,21 @@ export function DataAdmin() {
               if (file) void importFile(file);
             }}
           />
-          <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
+          <button type="button" className="btn" disabled={!canEdit} onClick={() => fileInput.current?.click()}>
             Välj fil…
           </button>
         </section>
         <section className="card card-body">
           <h3>Exempeldata</h3>
           <p>Ersätt all data med ett litet exempel för att prova applikationen.</p>
-          <button type="button" className="btn" onClick={() => void loadSampleData()}>
+          <button type="button" className="btn" disabled={!canEdit} onClick={() => void loadSampleData()}>
             Ladda exempeldata
           </button>
         </section>
         <section className="card card-body">
           <h3>Radera allt</h3>
           <p>Töm applikationen och återställ standardinställningarna.</p>
-          <button type="button" className="btn btn-danger" onClick={() => void deleteAll()}>
+          <button type="button" className="btn btn-danger" disabled={!canEdit} onClick={() => void deleteAll()}>
             Radera all data
           </button>
         </section>

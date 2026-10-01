@@ -5,11 +5,13 @@ import { plural } from '../../domain/format';
 import { sectionContents } from '../../domain/operations';
 import { sortByName } from '../../domain/sorting';
 import type { Section } from '../../domain/types';
+import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { useAdminSort } from './useAdminSort';
 
 export function SectionsAdmin() {
   const data = useDataStore((state) => state.data);
+  const canEdit = useCanEdit();
   const addSection = useDataStore((state) => state.addSection);
   const deleteSection = useDataStore((state) => state.deleteSection);
   const confirm = useConfirm();
@@ -62,12 +64,13 @@ export function SectionsAdmin() {
             placeholder="Namn på ny sektion"
             aria-label="Namn på ny sektion"
             value={newName}
+            disabled={!canEdit}
             onChange={(e) => {
               setNewName(e.target.value);
               setAddError(null);
             }}
           />
-          <button type="submit" className="btn btn-primary">
+          <button type="submit" className="btn btn-primary" disabled={!canEdit}>
             + Lägg till
           </button>
         </form>
@@ -114,10 +117,20 @@ export function SectionsAdmin() {
                     <td className="num">{contents.productOwners.length}</td>
                     <td className="num">{contents.initiatives.length}</td>
                     <td className="actions">
-                      <button type="button" className="link-btn" onClick={() => setRenaming(section)}>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        disabled={!canEdit}
+                        onClick={() => setRenaming(section)}
+                      >
                         Byt namn
                       </button>
-                      <button type="button" className="link-btn danger" onClick={() => void remove(section)}>
+                      <button
+                        type="button"
+                        className="link-btn danger"
+                        disabled={!canEdit}
+                        onClick={() => void remove(section)}
+                      >
                         Radera
                       </button>
                     </td>

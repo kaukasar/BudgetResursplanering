@@ -4,6 +4,7 @@ import { effectiveMonthlyHours, effectiveRate, storedHoursForPersonInInitiative 
 import { formatHours, formatSek, hoursLossText, plural } from '../../domain/format';
 import { joinSorted } from '../../domain/sorting';
 import { PERSON_TYPE_LABEL, type Initiative, type Measure, type Person } from '../../domain/types';
+import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { MISSING, sectionName } from '../labels';
 import { MissingSectionNotice } from './MissingSectionNotice';
@@ -13,6 +14,7 @@ import { useAdminSort } from './useAdminSort';
 export function PeopleAdmin() {
   const data = useDataStore((state) => state.data);
   const deletePerson = useDataStore((state) => state.deletePerson);
+  const canEdit = useCanEdit();
   const confirm = useConfirm();
   const [editing, setEditing] = useState<Person | 'new' | null>(null);
 
@@ -55,7 +57,7 @@ export function PeopleAdmin() {
         <button
           type="button"
           className="btn btn-primary"
-          disabled={noSections}
+          disabled={noSections || !canEdit}
           title={noSections ? 'Skapa först en sektion' : undefined}
           onClick={() => setEditing('new')}
         >
@@ -103,10 +105,15 @@ export function PeopleAdmin() {
                   </td>
                   <td className="small">{initiativeNames(person) || <span className="muted">{MISSING}</span>}</td>
                   <td className="actions">
-                    <button type="button" className="link-btn" onClick={() => setEditing(person)}>
+                    <button type="button" className="link-btn" disabled={!canEdit} onClick={() => setEditing(person)}>
                       Redigera
                     </button>
-                    <button type="button" className="link-btn danger" onClick={() => void remove(person)}>
+                    <button
+                      type="button"
+                      className="link-btn danger"
+                      disabled={!canEdit}
+                      onClick={() => void remove(person)}
+                    >
                       Radera
                     </button>
                   </td>

@@ -3,6 +3,7 @@ import { initiativeSectionId } from '../../domain/calc';
 import { formatSek } from '../../domain/format';
 import { joinSorted, sortByName } from '../../domain/sorting';
 import type { AppData, Initiative } from '../../domain/types';
+import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { MISSING, ownerName, personName, sectionName } from '../labels';
 import { InitiativeForm } from './InitiativeForm';
@@ -21,6 +22,7 @@ function missingPrerequisites(data: AppData): string[] {
 export function InitiativesAdmin() {
   const data = useDataStore((state) => state.data);
   const confirmDeleteInitiative = useConfirmDeleteInitiative();
+  const canEdit = useCanEdit();
   const [editing, setEditing] = useState<Initiative | 'new' | null>(null);
   const [ownerFilter, setOwnerFilter] = useState('');
 
@@ -66,7 +68,7 @@ export function InitiativesAdmin() {
           <button
             type="button"
             className="btn btn-primary"
-            disabled={missing.length > 0}
+            disabled={missing.length > 0 || !canEdit}
             title={missing.length > 0 ? `Skapa först ${missing.join(' och ')}` : undefined}
             onClick={() => setEditing('new')}
           >
@@ -117,12 +119,18 @@ export function InitiativesAdmin() {
                     {initiative.budget ? formatSek(initiative.budget) : <span className="muted">{MISSING}</span>}
                   </td>
                   <td className="actions">
-                    <button type="button" className="link-btn" onClick={() => setEditing(initiative)}>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      disabled={!canEdit}
+                      onClick={() => setEditing(initiative)}
+                    >
                       Redigera
                     </button>
                     <button
                       type="button"
                       className="link-btn danger"
+                      disabled={!canEdit}
                       onClick={() => void confirmDeleteInitiative(initiative)}
                     >
                       Radera

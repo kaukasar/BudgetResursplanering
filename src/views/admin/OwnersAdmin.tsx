@@ -5,6 +5,7 @@ import { SectionSelect } from '../../components/SectionSelect';
 import { initiativesForOwner } from '../../domain/operations';
 import { joinSorted, sortByName } from '../../domain/sorting';
 import type { ProductOwner } from '../../domain/types';
+import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { MISSING, sectionName } from '../labels';
 import { MissingSectionNotice } from './MissingSectionNotice';
@@ -15,6 +16,7 @@ export function OwnersAdmin() {
   const data = useDataStore((state) => state.data);
   const addProductOwner = useDataStore((state) => state.addProductOwner);
   const deleteProductOwner = useDataStore((state) => state.deleteProductOwner);
+  const canEdit = useCanEdit();
   const confirm = useConfirm();
 
   const [newName, setNewName] = useState('');
@@ -75,6 +77,7 @@ export function OwnersAdmin() {
               placeholder="Namn på ny produktägare"
               aria-label="Namn på ny produktägare"
               value={newName}
+              disabled={!canEdit}
               onChange={(e) => {
                 setNewName(e.target.value);
                 setAddError(null);
@@ -85,8 +88,9 @@ export function OwnersAdmin() {
               value={sectionForNew}
               onChange={setNewSectionId}
               label="Sektion för ny produktägare"
+              disabled={!canEdit}
             />
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn-primary" disabled={!canEdit}>
               + Lägg till
             </button>
           </form>
@@ -125,10 +129,15 @@ export function OwnersAdmin() {
                   <td>{sectionName(data, owner.sectionId)}</td>
                   <td className="small">{initiativeNames(owner) || <span className="muted">{MISSING}</span>}</td>
                   <td className="actions">
-                    <button type="button" className="link-btn" onClick={() => setEditing(owner)}>
+                    <button type="button" className="link-btn" disabled={!canEdit} onClick={() => setEditing(owner)}>
                       Redigera
                     </button>
-                    <button type="button" className="link-btn danger" onClick={() => void remove(owner)}>
+                    <button
+                      type="button"
+                      className="link-btn danger"
+                      disabled={!canEdit}
+                      onClick={() => void remove(owner)}
+                    >
                       Radera
                     </button>
                   </td>

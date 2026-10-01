@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { externalHourlyRate, hasExternalStaff } from '../../domain/calc';
 import { formatInputNumber, formatSek, parseWholeNumber, plural } from '../../domain/format';
 import { EXTERNAL_STAFF, PERSON_TYPE_LABEL, type PersonType } from '../../domain/types';
+import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 
 const PERSON_TYPES = Object.keys(PERSON_TYPE_LABEL) as PersonType[];
@@ -9,6 +10,7 @@ const PERSON_TYPES = Object.keys(PERSON_TYPE_LABEL) as PersonType[];
 export function SettingsAdmin() {
   const data = useDataStore((state) => state.data);
   const updateTypeSettings = useDataStore((state) => state.updateTypeSettings);
+  const canEdit = useCanEdit();
 
   return (
     <div className="stack">
@@ -35,12 +37,14 @@ export function SettingsAdmin() {
                   label="Timkostnad"
                   unit="kr/h"
                   value={data.settings[type].hourlyRate}
+                  readOnly={!canEdit}
                   onCommit={(hourlyRate) => updateTypeSettings(type, { hourlyRate })}
                 />
                 <LiveNumberField
                   label="Normal arbetstid"
                   unit="h/månad"
                   value={data.settings[type].monthlyHours}
+                  readOnly={!canEdit}
                   onCommit={(monthlyHours) => updateTypeSettings(type, { monthlyHours })}
                 />
                 <div className="small muted">
@@ -89,11 +93,13 @@ interface LiveNumberFieldProps {
   label: string;
   unit: string;
   value: number;
+  /** Skrivskyddat när redigering i adminläget är avstängd. */
+  readOnly: boolean;
   onCommit: (value: number) => void;
 }
 
 /** Nummerfält som sparar direkt när värdet är giltigt. Ett tomt fält är ogiltigt. */
-function LiveNumberField({ label, unit, value, onCommit }: LiveNumberFieldProps) {
+function LiveNumberField({ label, unit, value, readOnly, onCommit }: LiveNumberFieldProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const id = useId();
   const parse = (text: string) => (text.trim() === '' ? null : parseWholeNumber(text));
@@ -107,6 +113,7 @@ function LiveNumberField({ label, unit, value, onCommit }: LiveNumberFieldProps)
           id={id}
           className={invalid ? 'input invalid number-input' : 'input number-input'}
           inputMode="numeric"
+          readOnly={readOnly}
           value={draft ?? formatInputNumber(value)}
           onChange={(e) => {
             setDraft(e.target.value);

@@ -3,6 +3,7 @@ import { App } from '../App';
 import { ConfirmProvider } from '../components/Confirm';
 import * as ops from '../domain/operations';
 import { emptyData, type AppData } from '../domain/types';
+import { useEditLockStore } from '../store/editLock';
 import { useDataStore } from '../store/store';
 import { TEST_SETTINGS } from './domainFixture';
 import { DEFAULT_ADMIN_SORT, useUiStore } from '../store/ui';
@@ -43,10 +44,15 @@ export function seed(): AppData {
   return d;
 }
 
-/** Nollställer sparad data och vyinställningar mellan testerna. */
+/**
+ * Nollställer sparad data och vyinställningar mellan testerna. Redigering i adminläget slås på,
+ * eftersom de flesta adminstester ändrar data; spärren testas för sig i editLock.test.tsx.
+ */
 export function resetStores() {
   localStorage.clear();
+  sessionStorage.clear();
   useDataStore.setState({ data: seed() });
+  useEditLockStore.setState({ editingEnabled: true });
   useUiStore.setState({
     year: YEAR,
     view: 'estimate',
