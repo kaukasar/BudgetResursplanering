@@ -1,5 +1,6 @@
 import { DomainError } from './operations';
 import {
+  EXTERNAL_STAFF_ID,
   TAJMA_CLASSES,
   type AppData,
   type Initiative,
@@ -85,6 +86,7 @@ function parseTypeSettings(value: unknown, type: PersonType): TypeSettings {
 function parsePerson(value: unknown): Person {
   if (!isRecord(value)) fail('en person har fel format.');
   if (value.type !== 'employee' && value.type !== 'consultant') fail(`okänd personaltyp "${String(value.type)}".`);
+  if (value.id === EXTERNAL_STAFF_ID) fail(`person-id "${EXTERNAL_STAFF_ID}" är reserverat för Extern personal.`);
   return {
     id: requireString(value.id, 'Person-id'),
     name: requireString(value.name, 'Personnamn'),
@@ -221,7 +223,8 @@ export function parseAppData(input: unknown): AppData {
   const productOwners = withOwners.items;
 
   const ownerIds = new Set(productOwners.map((owner) => owner.id));
-  const personIds = new Set(people.map((person) => person.id));
+  // Extern personal är inbyggd och finns inte bland personalen, men kan vara kopplad till initiativ.
+  const personIds = new Set([...people.map((person) => person.id), EXTERNAL_STAFF_ID]);
   const initiatives = requireArray(raw.initiatives, 'Initiativ')
     .map(parseInitiative)
     .map((initiative) => {

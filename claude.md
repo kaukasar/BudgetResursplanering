@@ -15,6 +15,8 @@ Sektion
     └── Initiativ (tillhör samma sektion som sin produktägare)
 ```
 
+Utanför sektionerna finns **Extern personal** (2.7): en inbyggd post för tid från personal utanför de ordinarie teamen, som kan kopplas till alla initiativ.
+
 Applikationen har två huvudsakliga lägen:
 
 1. **Adminläge:** För hantering av stamdata (sektioner, personal, produktägare och initiativ) samt deras kopplingslogik.
@@ -58,6 +60,7 @@ Applikationen har två huvudsakliga lägen:
 * Tillhörig Produktägare (Exakt 1 produktägare)
 * Sektion: väljs inte separat utan är alltid densamma som produktägarens sektion.
 * Kopplad Personal (Minst 1 person). Personal från andra sektioner än initiativets får kopplas.
+* Extern personal (frivillig, se 2.7): kan kopplas till initiativet utöver den vanliga personalen. Extern personal räknas inte som en person i kravet på minst 1 kopplad person.
 * År (Ett eller flera relevanta kalenderår)
 * Budget (frivillig): totalbudget i SEK för initiativets alla år. Om budget anges måste den vara ett heltal större än 0.
 * Tajmaklass (frivillig): ett av värdena `IMM`, `Vidareutveckling` eller `Drift`, eller tomt. Standardvärdet är tomt.
@@ -79,6 +82,18 @@ Applikationen har två huvudsakliga lägen:
 * Faktiskt nedlagt antal timmar (heltal $\ge 0$), **eller inget värde** (= utfall ej rapporterat). "Ej rapporterat" skiljer sig från rapporterade 0 timmar.
 * Utfall kan endast rapporteras för personer som är kopplade till initiativet, och för initiativets år.
 * Utfall kan rapporteras för alla månader (inga låsta eller stängda perioder).
+
+
+
+### 2.7 Extern personal
+
+Ibland lägger personal utanför de ordinarie teamen och sektionerna tid på ett initiativ. Vem som har arbetat och vilken organisation de tillhör är ointressant; det som registreras är deras **samlade timmar per månad**.
+
+* **Extern personal** är en inbyggd post i systemet. Den skapas inte, redigeras inte och kan inte raderas, och den visas inte i adminlägets flik Personal.
+* Den kan kopplas till vilket initiativ som helst och har då, precis som övrig personal, både **estimat** och **utfall** per år och månad.
+* **Timkostnad (schablon):** medelvärdet av standardtimkostnaden för anställd och konsult (3.2), avrundat till närmaste heltal. Med standardvärdena 625 och 1 130 kr/h blir det 878 kr/h. Värdet anges inte manuellt och följer automatiskt med när standardvärdena ändras.
+* **Inget tak:** Extern personal har ingen normal arbetstid, eftersom det kan vara en eller flera personer, och kan därför aldrig bli överallokerad.
+* **Ingen sektion:** Extern personal tillhör ingen sektion och markeras inte som inlånad.
 
 
 
@@ -120,6 +135,7 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Radera personal.
 * Det ska finnas en global inställning för samtlig personal som anger hur mycket en konsult respektive anställd kostar samt hur många timmar per månad de förväntas att arbeta. Inställningen är gemensam för alla sektioner.
 * **Förifyllda standardvärden:** Anställd 625 kr/h och Konsult 1 130 kr/h, båda med 160 timmar per månad. Värdena gäller tills de ändras under Inställningar, och för alla personer som saknar egen timkostnad eller arbetstid.
+* Under Inställningar visas även **Extern personal** (2.7) med sin schablontimkostnad, "Inget tak" för arbetstiden och antalet initiativ den är kopplad till. Värdena är skrivskyddade och räknas fram automatiskt.
 
 ### 3.3 Hantering av Produktägare
 
@@ -142,12 +158,13 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * **Standard:** endast personal i produktägarens sektion visas. För ett nytt initiativ där produktägare ännu inte är vald visas personal från alla sektioner; när produktägaren väljs eller byts visas i stället den produktägarens sektion.
 * Personal som redan är kopplad till initiativet visas alltid, även om deras sektion är bortfiltrerad. En person som avmarkeras ligger kvar i listan tills formuläret stängs, så att valet kan ångras.
 * Filtret visas bara när fler än en sektion har personal. Valet sparas inte mellan gångerna formuläret öppnas.
+* **Extern personal** (2.7) kopplas med en egen kryssruta under personallistan, som visar schablontimkostnaden och inte påverkas av sektionsfiltret. Den räknas inte med i antalet valda personer. I initiativlistans kolumn Personal visas den som "Extern personal".
 * Ange, ändra eller ta bort initiativets budget (frivillig uppgift). Budgeten anges endast i adminläget.
 * Välja initiativets **Tajmaklass** i en lista med värdena: tomt ("– (ingen)"), IMM, Vidareutveckling, Drift. Nya initiativ har tomt värde som standard och kan skapas med tomt värde. Värdet kan ändras och tas bort (sättas till tomt) i efterhand.
 * Initiativlistan i adminläget har kolumnerna Namn, Sektion, Produktägare, Tajmaklass ("–" när värdet är tomt), År, Personal och Budget. Estimat och utfall visas inte i adminläget utan i arbetsläget.
 * Radera initiativ:
 * Ett initiativ ska kunna raderas oavsett vilken information eller vilka timmar som finns kopplade till det.
-* När personal eller år tas bort från ett initiativ, eller när personal eller initiativ raderas, raderas både estimat och utfall. Bekräftelsedialogen visar hur många timmar av vardera som försvinner.
+* När personal (inklusive Extern personal) eller år tas bort från ett initiativ, eller när personal eller initiativ raderas, raderas både estimat och utfall. Bekräftelsedialogen visar hur många timmar av vardera som försvinner.
 
 ### 3.5 Datahantering (fliken Data)
 
@@ -156,6 +173,7 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * En rad per initiativ, person, år och månad. Alla kopplade personer och initiativets alla år tas med, även månader med 0 timmar.
 * Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (hemsektion), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
 * Utfall (h), Avvikelse (h) (= utfall − estimat) och Utfallskostnad (kr) lämnas tomma för månader utan rapporterat utfall.
+* Extern personal (2.7) exporteras med Person "Extern personal" och Typ "Extern". Personens sektion, Normal arbetstid och Totalt estimat alla initiativ lämnas tomma, och Överallokerad är alltid "Nej".
 * Alla tal i filen är heltal (se 5.4), utan tusentalsavgränsare.
 * Anpassad för svensk Excel: semikolon som avgränsare och UTF-8 med BOM, så att filen kan öppnas direkt med dubbelklick.
 
@@ -185,7 +203,7 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 
 * **Kolumner:**
-1. **Personal:** Visar namnet på de personer som är kopplade till initiativet. Personal som lånats in från en annan sektion markeras med sin hemsektion.
+1. **Personal:** Visar namnet på de personer som är kopplade till initiativet. Personal som lånats in från en annan sektion markeras med sin hemsektion. Är Extern personal (2.7) kopplad visas den som sista rad, märkt "Extern · schablon 878 kr/h", och matas in och summeras som övrig personal i alla vyer.
 2. **Månader (12 kolumner):** Januari till December.
 3. **Totalt timmar per person:** Summan av alla inmatade timmar för personen under året i detta initiativ.
 4. **Totalt kostnad per person:** $(\text{Totalt timmar}) \times (\text{Personens timkostnad})$.
@@ -244,18 +262,20 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * Prognos av budget (%) = (Estimerad kostnad för initiativets **alla år**) / Budget × 100.
 * Utfall av budget (%) = (Utfallskostnad för initiativets **alla år**) / Budget × 100.
 * Utfallskostnad = Utfall (timmar) × Timkostnad. Timkostnaden är alltid den aktuella; ändras den räknas även historiskt utfall om.
+* Extern personals timkostnad = (standardtimkostnad anställd + standardtimkostnad konsult) / 2, avrundad till närmaste heltal (2.7). Extern personals timmar och kostnader räknas med i initiativets summor, i prognos och utfall av budget och i nyckeltalen för timmar och kostnad.
 * **Avvikelse** = Utfall − Estimat, beräknat endast på månader med rapporterat utfall. Avvikelse i procent = Avvikelse / Estimat (för samma månader) × 100.
 
 
 2. **Indikering vid Överallokering (Kapacitetskontroll):**
 * Systemet ska beräkna en persons **totala allokering i alla initiativ sammanlagt** per månad, oavsett vilken sektion initiativen tillhör.
+* Extern personal (2.7) har inget tak och kan aldrig bli överallokerad. Den visas inte i kapacitetsöversikten och räknas inte i nyckeltalet för överallokerade personmånader.
 * Beräkningen görs på utfall i utfallsvyn och på estimat i övriga vyer.
 * Om en persons totala arbetstid för en specifik månad överskrider personens inställda *normala arbetstid* (t.ex. >160 timmar), ska detta indikeras visuellt med **röd färg** i gränssnittet där personen förekommer.
 * Markeringen görs med **röd text**: personens namn samt timsiffran för den överallokerade månaden visas i rött. Cellerna ska **inte** få röd bakgrundsfärg.
 
 
 3. **Kopplingskrav:**
-* Personal och produktägare måste alltid tillhöra exakt 1 sektion.
+* Personal och produktägare måste alltid tillhöra exakt 1 sektion. Undantag: Extern personal (2.7) tillhör ingen sektion.
 * Ett initiativ måste alltid ha exakt 1 produktägare, och tillhör alltid produktägarens sektion.
 * Det ska gå att ta bort personal från ett initiativ i adminläget tills det inte finns någon personal kvar (eller tills initiativet tas bort).
 

@@ -32,6 +32,26 @@ export interface Person {
   monthlyHours: number | null;
 }
 
+/**
+ * Extern personal: en inbyggd post för den samlade tiden från personal utanför de ordinarie teamen.
+ * Den lagras inte bland personalen utan kopplas till ett initiativ med sitt fasta id. Timkostnaden
+ * är en schablon, och posten har varken sektion eller tak för arbetstiden.
+ */
+export interface ExternalStaff {
+  id: typeof EXTERNAL_STAFF_ID;
+  name: string;
+  external: true;
+}
+
+export const EXTERNAL_STAFF_ID = 'extern';
+export const EXTERNAL_STAFF: ExternalStaff = { id: EXTERNAL_STAFF_ID, name: 'Extern personal', external: true };
+export const EXTERNAL_STAFF_LABEL = 'Extern';
+
+/** Den som tid registreras på i ett initiativ: en person eller Extern personal. */
+export type Worker = Person | ExternalStaff;
+
+export const isExternal = (worker: Worker): worker is ExternalStaff => 'external' in worker;
+
 export interface ProductOwner {
   id: string;
   name: string;

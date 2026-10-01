@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
-import { formatInputNumber, parseWholeNumber, plural } from '../../domain/format';
-import { PERSON_TYPE_LABEL, type PersonType } from '../../domain/types';
+import { externalHourlyRate, hasExternalStaff } from '../../domain/calc';
+import { formatInputNumber, formatSek, parseWholeNumber, plural } from '../../domain/format';
+import { EXTERNAL_STAFF, PERSON_TYPE_LABEL, type PersonType } from '../../domain/types';
 import { useDataStore } from '../../store/store';
 
 const PERSON_TYPES = Object.keys(PERSON_TYPE_LABEL) as PersonType[];
@@ -50,8 +51,37 @@ export function SettingsAdmin() {
             </section>
           );
         })}
+        <ExternalStaffSettings />
       </div>
     </div>
+  );
+}
+
+/** Extern personal har inga egna inställningar; timkostnaden räknas fram och visas här. */
+function ExternalStaffSettings() {
+  const data = useDataStore((state) => state.data);
+  const initiativeCount = data.initiatives.filter(hasExternalStaff).length;
+  return (
+    <section className="card" aria-label={EXTERNAL_STAFF.name}>
+      <div className="card-head">
+        <h3>{EXTERNAL_STAFF.name}</h3>
+        <span className="small muted">{plural(initiativeCount, 'initiativ', 'initiativ')}</span>
+      </div>
+      <div className="card-body">
+        <div className="field">
+          <span>Timkostnad (schablon)</span>
+          <strong className="settings-value">{formatSek(externalHourlyRate(data.settings))}/h</strong>
+        </div>
+        <div className="field">
+          <span>Normal arbetstid</span>
+          <strong className="settings-value">Inget tak</strong>
+        </div>
+        <div className="small muted">
+          Räknas fram automatiskt som medelvärdet av standardtimkostnaden för anställd och konsult, avrundat till
+          heltal. Extern personal blir aldrig överallokerad.
+        </div>
+      </div>
+    </section>
   );
 }
 

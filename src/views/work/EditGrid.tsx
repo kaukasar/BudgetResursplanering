@@ -8,7 +8,15 @@ import {
   type PersonCapacity,
 } from '../../domain/calc';
 import { formatHours, formatSek } from '../../domain/format';
-import { MONTHS, MONTHS_LONG, type AppData, type Initiative, type Measure, type Person } from '../../domain/types';
+import {
+  isExternal,
+  MONTHS,
+  MONTHS_LONG,
+  type AppData,
+  type Initiative,
+  type Measure,
+  type Worker,
+} from '../../domain/types';
 import { useDataStore } from '../../store/store';
 import { PersonCell, rateDetails } from './PersonCell';
 
@@ -54,7 +62,8 @@ export function EditGrid({ data, initiative, year, measure, initiativeSectionId 
         <tbody>
           {summary.rows.map((row, rowIndex) => {
             const { person } = row;
-            const capacity = personCapacity(data, person, year, measure);
+            // Extern personal har inget tak och kan aldrig bli överallokerad.
+            const capacity = isExternal(person) ? null : personCapacity(data, person, year, measure);
             const estimates = getMonthEstimates(data, initiative.id, person.id, year);
             const actuals = getMonthActuals(data, initiative.id, person.id, year);
             const canFillFromEstimate =
@@ -64,7 +73,7 @@ export function EditGrid({ data, initiative, year, measure, initiativeSectionId 
                 <PersonCell
                   person={person}
                   details={rateDetails(data, person, row.rate, initiativeSectionId)}
-                  overallocated={capacity.overallocated}
+                  overallocated={capacity?.overallocated}
                   after={
                     canFillFromEstimate && (
                       <button
@@ -81,7 +90,7 @@ export function EditGrid({ data, initiative, year, measure, initiativeSectionId 
                 {MONTHS.map((_, month) => (
                   <td
                     key={month}
-                    className={capacity.overallocated[month] ? 'cell over' : 'cell'}
+                    className={capacity?.overallocated[month] ? 'cell over' : 'cell'}
                     title={cellTitle(person, month, capacity, measure, estimates[month]!)}
                   >
                     <HoursCell
@@ -126,8 +135,12 @@ export function EditGrid({ data, initiative, year, measure, initiativeSectionId 
 /** I utfallsvyn visas estimatet som grå ledtext i tomma celler. */
 const estimatePlaceholder = (estimate: number) => (estimate > 0 ? formatHours(estimate) : '');
 
-function cellTitle(person: Person, month: number, capacity: PersonCapacity, measure: Measure, estimate: number) {
+function cellTitle(person: Worker, month: number, capacity: PersonCapacity | null, measure: Measure, estimate: number) {
   const measureName = measure === 'actual' ? 'utfall' : 'estimat';
+  if (!capacity) {
+    const estimateHere = measure === 'actual' ? `: estimat ${formatHours(estimate)} h` : '';
+    return `${person.name}, ${MONTHS_LONG[month]}${estimateHere} (inget tak för arbetstiden)`;
+  }
   const total = formatHours(capacity.monthTotals[month]!);
   const overallocated = capacity.overallocated[month] ? ' – överallokerad!' : '';
   const estimateHere = measure === 'actual' ? ` · estimat här ${formatHours(estimate)} h` : '';

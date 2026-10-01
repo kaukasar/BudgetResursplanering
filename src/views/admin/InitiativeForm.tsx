@@ -1,10 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
 import { Modal } from '../../components/Modal';
-import { hoursLostByUpdate, storedHoursForPersonInInitiative, type HoursLoss } from '../../domain/calc';
-import { formatInputNumber, hoursPairText, parseOptionalWholeNumber } from '../../domain/format';
+import {
+  externalHourlyRate,
+  hoursLostByUpdate,
+  regularPersonIds,
+  storedHoursForPersonInInitiative,
+  type HoursLoss,
+} from '../../domain/calc';
+import { formatInputNumber, formatSek, hoursPairText, parseOptionalWholeNumber } from '../../domain/format';
 import { compareByName, compareValues, sortByName } from '../../domain/sorting';
 import {
+  EXTERNAL_STAFF,
+  EXTERNAL_STAFF_LABEL,
   PERSON_TYPE_LABEL,
   TAJMA_CLASSES,
   type AppData,
@@ -111,6 +119,15 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
     setPinnedPersonIds((current) => (current.includes(personId) ? current : [...current, personId]));
   };
 
+  /** "40 h estimat, 12 h utfall" som redan finns sparat för personen i initiativet. */
+  const storedHoursText = (personId: string) =>
+    initiative
+      ? hoursPairText(
+          storedHoursForPersonInInitiative(data, initiative.id, personId, 'estimate'),
+          storedHoursForPersonInInitiative(data, initiative.id, personId, 'actual'),
+        )
+      : '';
+
   const changeOwner = (id: string) => {
     setOwnerId(id);
     setShownSectionIds(defaultShownSections(id));
@@ -128,7 +145,8 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
     if (!name.trim()) return 'Ange ett namn.';
     if (!ownerId) return 'Välj en produktägare.';
     if (years.length === 0) return 'Välj minst ett år.';
-    if (isNew && personIds.length === 0) return 'Koppla minst en person till initiativet.';
+    // Extern personal räknas inte som en person i kravet på minst en kopplad person.
+    if (isNew && regularPersonIds(personIds).length === 0) return 'Koppla minst en person till initiativet.';
     if (budgetInvalid) return 'Budget måste vara ett heltal större än 0, eller lämnas tom.';
     return null;
   };
@@ -301,7 +319,7 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
           <legend>
             Personal{' '}
             <span className="muted small">
-              ({personIds.length} valda{isNew ? ', minst 1' : ''})
+              ({regularPersonIds(personIds).length} valda{isNew ? ', minst 1' : ''})
             </span>
           </legend>
           {filterSections.length > 1 && (
@@ -340,12 +358,7 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
           ) : (
             <div className="check-list">
               {people.map((person) => {
-                const storedHours = initiative
-                  ? hoursPairText(
-                      storedHoursForPersonInInitiative(data, initiative.id, person.id, 'estimate'),
-                      storedHoursForPersonInInitiative(data, initiative.id, person.id, 'actual'),
-                    )
-                  : '';
+                const storedHours = storedHoursText(person.id);
                 return (
                   <label key={person.id}>
                     <input
@@ -365,6 +378,31 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
               })}
             </div>
           )}
+        </fieldset>
+
+        <fieldset className="field plain">
+          <legend>Extern personal</legend>
+          {/* Påverkas inte av sektionsfiltret: Extern personal tillhör ingen sektion. */}
+          <div className="check-list">
+            <label>
+              <input
+                type="checkbox"
+                checked={personIds.includes(EXTERNAL_STAFF.id)}
+                onChange={() => togglePerson(EXTERNAL_STAFF.id)}
+              />
+              <span>{EXTERNAL_STAFF.name}</span>
+              <span className="tag external">{EXTERNAL_STAFF_LABEL}</span>
+              <span className="small muted">schablon {formatSek(externalHourlyRate(data.settings))}/h</span>
+              <span className="spacer" />
+              {storedHoursText(EXTERNAL_STAFF.id) && (
+                <span className="small muted">{storedHoursText(EXTERNAL_STAFF.id)}</span>
+              )}
+            </label>
+          </div>
+          <p className="small muted form-note">
+            Samlad tid från personal utanför de ordinarie teamen. Timkostnaden är medelvärdet av standardtimkostnaden
+            för anställd och konsult, och arbetstiden har inget tak.
+          </p>
         </fieldset>
 
         {error && (

@@ -425,8 +425,13 @@ describe('sektionsfilter för personal i initiativformuläret', () => {
     });
     return ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
   };
+  /** Namnen i personallistan (fältgruppen Personal, inte Extern personal). */
   const peopleIn = (dialog: HTMLElement) =>
-    [...dialog.querySelectorAll('.check-list label > span:first-of-type')].map((span) => span.textContent);
+    [
+      ...within(dialog)
+        .getByRole('group', { name: /^Personal/ })
+        .querySelectorAll('.check-list label > span:first-of-type'),
+    ].map((span) => span.textContent);
   const sectionFilter = (dialog: HTMLElement) =>
     within(dialog).getByRole('group', { name: 'Visa personal från sektion' });
   const sectionChip = (dialog: HTMLElement, name: string) =>

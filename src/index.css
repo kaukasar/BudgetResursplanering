@@ -362,6 +362,10 @@ select {
   background: var(--primary-soft);
   color: var(--primary);
 }
+.tag.external {
+  background: var(--surface-3);
+  color: var(--muted);
+}
 
 .empty {
   padding: 40px 24px;
@@ -854,6 +858,11 @@ td.not-reported .cmp-value {
 .settings-grid .card-body {
   display: grid;
   gap: 12px;
+}
+.settings-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
 }
 
 .data-actions {

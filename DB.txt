@@ -165,9 +165,10 @@ Behörighet
   MONTHLY_HOURS     NUMBER(6)                 Nej   Normal arbetstid i timmar per månad. Minst 0.
   + gemensamma kolumner
 
-  Tabellen har exakt två rader, som skapas vid installationen med appens standardvärden:
-  Anställd 625 kr/h och 160 h/mån, Konsult 1 130 kr/h och 160 h/mån. Backend tillåter bara att
-  värdena ändras, inte att typer läggs till eller tas bort.
+  Tabellen har två rader för personaltyperna, som skapas vid installationen med appens
+  standardvärden: Anställd 625 kr/h och 160 h/mån, Konsult 1 130 kr/h och 160 h/mån. Backend
+  tillåter bara att värdena ändras, inte att typer läggs till eller tas bort. En tredje rad,
+  'external', används av Extern personal och saknar egna värden (se 4.4).
 
   Motivering: den globala inställningen per typ (3.2) är en egenskap hos typen. Samma tabell
   fungerar som uppslagstabell, så att en person bara kan få en giltig typ.
@@ -205,8 +206,8 @@ Behörighet
   ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
   NAME              VARCHAR2(200 CHAR)        Nej   Namn.
   PERSON_TYPE       VARCHAR2(20 CHAR)         Nej   Främmande nyckel till PERSON_TYPE.CODE.
-  SECTION_ID        VARCHAR2(64 CHAR)         Nej   Hemsektion. Främmande nyckel till SECTION.ID,
-                                                    utan kaskad.
+  SECTION_ID        VARCHAR2(64 CHAR)         Ja    Hemsektion. Främmande nyckel till SECTION.ID,
+                                                    utan kaskad. NULL endast för Extern personal.
   HOURLY_RATE       NUMBER(10)                Ja    Egen timkostnad i SEK/h. NULL betyder att
                                                     typens standardvärde gäller. Minst 0.
   MONTHLY_HOURS     NUMBER(6)                 Ja    Egen arbetstid i h/mån. NULL betyder att
@@ -216,6 +217,21 @@ Behörighet
   Den timkostnad och arbetstid som gäller för personen (eget värde, annars typens) beräknas i en
   vy (avsnitt 6) och lagras inte. Ändras typens standardvärde gäller det direkt för alla personer
   som saknar eget värde.
+
+  Extern personal (claude.md 2.7)
+  Extern personal lagras som en fast systemrad i PERSON med ID 'extern' och typen 'external'. Då
+  fungerar INITIATIVE_PERSON och TIME_ENTRY oförändrade, med samma främmande nycklar och kaskader
+  som för övrig personal. Det kräver tre justeringar:
+  - PERSON_TYPE får en tredje rad, 'external' (Extern), där HOURLY_RATE och MONTHLY_HOURS är NULL:
+    timkostnaden räknas fram och arbetstiden saknar tak. Ett kontrollvillkor tillåter NULL endast
+    för den raden.
+  - PERSON.SECTION_ID får vara NULL, men ett kontrollvillkor tillåter det endast för typen
+    'external'.
+  - Raden skapas vid installationen. Backend tillåter inte att den ändras eller raderas, och den
+    visas inte i personallistan.
+  Schablontimkostnaden, (anställds + konsults standardtimkostnad) / 2 avrundat till heltal, räknas
+  fram i V_PERSON_RATE (avsnitt 6). V_PERSON_MONTH_LOAD utesluter Extern personal, som aldrig kan
+  bli överallokerad.
 
 
 4.5 PRODUCT_OWNER – produktägare (2.3, 3.3)
@@ -475,7 +491,8 @@ data samtidigt. Schemat hanterar det så här:
   initiatives[]                                    INITIATIVE (budget och tajmaClass: null
                                                    blir NULL)
   initiatives[].years[]                            INITIATIVE_YEAR
-  initiatives[].personIds[]                        INITIATIVE_PERSON
+  initiatives[].personIds[]                        INITIATIVE_PERSON (id:t 'extern' pekar på
+                                                   systemraden för Extern personal)
   estimates[initiativ][person][år][månad 0–11]     TIME_ENTRY.ESTIMATED_HOURS
                                                    (CALENDAR_MONTH = månad + 1)
   actuals[initiativ][person][år][månad 0–11]       TIME_ENTRY.ACTUAL_HOURS (null blir NULL)

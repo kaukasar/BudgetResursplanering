@@ -1,4 +1,17 @@
-import type { AppData, Initiative, Measure, MonthActuals, MonthHours, Person, Settings, TimeMap } from './types';
+import {
+  EXTERNAL_STAFF,
+  EXTERNAL_STAFF_ID,
+  isExternal,
+  type AppData,
+  type Initiative,
+  type Measure,
+  type MonthActuals,
+  type MonthHours,
+  type Person,
+  type Settings,
+  type TimeMap,
+  type Worker,
+} from './types';
 
 export const zeroMonths = (): MonthHours => Array<number>(12).fill(0);
 export const emptyActuals = (): MonthActuals => Array<number | null>(12).fill(null);
@@ -9,8 +22,17 @@ export const sumHours = (values: readonly (number | null)[]) =>
 
 // ---------------------------------------------------------------- Timkostnad och arbetstid
 
-export function effectiveRate(person: Person, settings: Settings): number {
-  return person.hourlyRate ?? settings[person.type].hourlyRate;
+/**
+ * Schablontimkostnad för Extern personal: mitt emellan standardtimkostnaden för anställd och
+ * konsult, avrundad till heltal. Följer med när standardvärdena ändras.
+ */
+export function externalHourlyRate(settings: Settings): number {
+  return Math.round((settings.employee.hourlyRate + settings.consultant.hourlyRate) / 2);
+}
+
+export function effectiveRate(worker: Worker, settings: Settings): number {
+  if (isExternal(worker)) return externalHourlyRate(settings);
+  return worker.hourlyRate ?? settings[worker.type].hourlyRate;
 }
 
 export function effectiveMonthlyHours(person: Person, settings: Settings): number {
@@ -46,7 +68,7 @@ export function getMonthValues(
 // ---------------------------------------------------------------- Initiativ
 
 export interface InitiativeRow {
-  person: Person;
+  person: Worker;
   rate: number;
   months: MonthHours;
   totalHours: number;
@@ -81,11 +103,17 @@ export function summarizeInitiative(
   };
 }
 
-/** Personal kopplad till initiativet, i initiativets ordning. */
-export function linkedPeople(data: AppData, initiative: Initiative): Person[] {
+/** Personal kopplad till initiativet, i initiativets ordning. Extern personal kommer alltid sist. */
+export function linkedPeople(data: AppData, initiative: Initiative): Worker[] {
   const peopleById = new Map(data.people.map((person) => [person.id, person]));
-  return initiative.personIds.flatMap((id) => peopleById.get(id) ?? []);
+  const people = initiative.personIds.flatMap((id) => peopleById.get(id) ?? []);
+  return hasExternalStaff(initiative) ? [...people, EXTERNAL_STAFF] : people;
 }
+
+export const hasExternalStaff = (initiative: Initiative) => initiative.personIds.includes(EXTERNAL_STAFF_ID);
+
+/** Kopplad personal utom Extern personal. */
+export const regularPersonIds = (personIds: readonly string[]) => personIds.filter((id) => id !== EXTERNAL_STAFF_ID);
 
 /** Ett initiativs sektion är dess produktägares sektion. */
 export function initiativeSectionId(data: AppData, initiative: Initiative): string | undefined {

@@ -1,5 +1,6 @@
-import { emptyActuals, getMonthActuals, getMonthEstimates, zeroMonths } from './calc';
+import { emptyActuals, getMonthActuals, getMonthEstimates, regularPersonIds, zeroMonths } from './calc';
 import {
+  EXTERNAL_STAFF_ID,
   TAJMA_CLASSES,
   type AppData,
   type Initiative,
@@ -60,9 +61,9 @@ function normalizeYears(years: number[]): number[] {
   return unique;
 }
 
-/** Okända person-id:n och dubbletter tas bort. */
+/** Okända person-id:n och dubbletter tas bort. Extern personal är alltid känd. */
 function knownPersonIds(data: AppData, personIds: string[]): string[] {
-  const known = new Set(data.people.map((person) => person.id));
+  const known = new Set([...data.people.map((person) => person.id), EXTERNAL_STAFF_ID]);
   return [...new Set(personIds)].filter((id) => known.has(id));
 }
 
@@ -184,6 +185,7 @@ export function deleteSection(data: AppData, id: string): AppData {
 // ---------------------------------------------------------------- Personal
 
 function validatePerson(data: AppData, person: Person): Person {
+  if (person.id === EXTERNAL_STAFF_ID) throw new DomainError('Id:t är reserverat för Extern personal.');
   return {
     ...person,
     name: requireName(person.name),
@@ -263,10 +265,15 @@ function requireSameSection(data: AppData, fromOwnerId: string, toOwnerId: strin
   }
 }
 
-/** Nytt initiativ: exakt en produktägare, minst en person och minst ett år. */
+/**
+ * Nytt initiativ: exakt en produktägare, minst en person och minst ett år. Extern personal räknas
+ * inte som en person i det kravet.
+ */
 export function addInitiative(data: AppData, initiative: Initiative): AppData {
   const personIds = knownPersonIds(data, initiative.personIds);
-  if (personIds.length === 0) throw new DomainError('Ett nytt initiativ måste ha minst en person kopplad.');
+  if (regularPersonIds(personIds).length === 0) {
+    throw new DomainError('Ett nytt initiativ måste ha minst en person kopplad.');
+  }
   const validated: Initiative = {
     ...initiative,
     name: requireName(initiative.name),

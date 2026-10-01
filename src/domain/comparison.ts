@@ -1,5 +1,5 @@
 import { effectiveRate, getMonthActuals, getMonthEstimates, linkedPeople, sumHours, zeroMonths } from './calc';
-import type { AppData, Initiative, MonthActuals, MonthHours, Person } from './types';
+import type { AppData, Initiative, MonthActuals, MonthHours, Worker } from './types';
 
 /**
  * Avvikelse mellan utfall och estimat, räknad endast på månader med rapporterat utfall så att
@@ -40,7 +40,7 @@ export function sumDeviations(deviations: readonly Deviation[]): Deviation {
 }
 
 export interface PersonComparison {
-  person: Person;
+  person: Worker;
   rate: number;
   estimate: MonthHours;
   actual: MonthActuals;

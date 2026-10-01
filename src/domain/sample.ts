@@ -1,6 +1,6 @@
 import { getMonthEstimates, lastCompletedMonth } from './calc';
 import * as ops from './operations';
-import { emptyData, type AppData, type PersonType, type TajmaClass } from './types';
+import { EXTERNAL_STAFF_ID, emptyData, type AppData, type PersonType, type TajmaClass } from './types';
 
 /** Skapar en liten exempeldatamängd för att prova applikationen. */
 export function sampleData(
@@ -71,7 +71,8 @@ export function sampleData(
     'Vidareutveckling',
   );
   const app = initiative('Mobilapp', maria, [anna, bengt], [year], 1_200_000, 'IMM'); // planerat över budget
-  const bi = initiative('Datalager & BI', johan, [bengt, eva, david], [year]);
+  // Datalager & BI får även några timmar från Extern personal (personal utanför de ordinarie teamen).
+  const bi = initiative('Datalager & BI', johan, [bengt, eva, david, EXTERNAL_STAFF_ID], [year]);
 
   // Estimerade timmar per månad, januari–december.
   plan(portal, anna, year, [80, 80, 100, 100, 80, 60, 0, 40, 80, 80, 80, 40]);
@@ -83,6 +84,7 @@ export function sampleData(
   plan(bi, bengt, year, [40, 40, 40, 40, 40, 40, 0, 40, 40, 40, 40, 40]);
   plan(bi, eva, year, [100, 100, 100, 100, 100, 80, 0, 60, 100, 100, 100, 60]);
   plan(bi, david, year, [60, 60, 60, 60, 60, 40, 0, 40, 60, 80, 60, 40]); // okt: 140 h > 120 h → överallokerad
+  plan(bi, EXTERNAL_STAFF_ID, year, [10, 0, 20, 0, 10, 0, 0, 0, 30, 20, 0, 0]);
 
   // Utfall för avslutade månader, med viss avvikelse mot estimatet.
   // Cecilia ligger konsekvent över estimatet på Kundportal 2.0.
@@ -104,6 +106,7 @@ export function sampleData(
   report(bi, bengt, 9);
   report(bi, eva, 4, -6);
   report(bi, david, 11);
+  report(bi, EXTERNAL_STAFF_ID, 6);
 
   return data;
 }

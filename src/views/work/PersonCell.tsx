@@ -1,10 +1,21 @@
 import type { ReactNode } from 'react';
 import { formatSek } from '../../domain/format';
-import { MONTHS_LONG, PERSON_TYPE_LABEL, type AppData, type Person } from '../../domain/types';
+import {
+  EXTERNAL_STAFF_LABEL,
+  isExternal,
+  MONTHS_LONG,
+  PERSON_TYPE_LABEL,
+  type AppData,
+  type Worker,
+} from '../../domain/types';
 import { sectionName } from '../labels';
 
-/** "Konsult · 1 250 kr/h · från Digitala kanaler" – hemsektionen visas bara för inlånad personal. */
-export function rateDetails(data: AppData, person: Person, rate: number, initiativeSectionId?: string): string {
+/**
+ * "Konsult · 1 250 kr/h · från Digitala kanaler" – hemsektionen visas bara för inlånad personal.
+ * Extern personal: "Extern · schablon 878 kr/h".
+ */
+export function rateDetails(data: AppData, person: Worker, rate: number, initiativeSectionId?: string): string {
+  if (isExternal(person)) return `${EXTERNAL_STAFF_LABEL} · schablon ${formatSek(rate)}/h`;
   const parts = [PERSON_TYPE_LABEL[person.type], `${formatSek(rate)}/h`];
   if (initiativeSectionId && person.sectionId !== initiativeSectionId) {
     parts.push(`från ${sectionName(data, person.sectionId)}`);
@@ -13,7 +24,7 @@ export function rateDetails(data: AppData, person: Person, rate: number, initiat
 }
 
 interface Props {
-  person: Person;
+  person: Worker;
   details: string;
   /** Per månad: personen är överallokerad. Markeras i rött med en förklaring. */
   overallocated?: boolean[];
