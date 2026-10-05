@@ -73,8 +73,8 @@ export function CompareGrid({ year, comparison }: Props) {
                 {row.estimate.map((estimate, month) => (
                   <CompareCell key={month} estimate={estimate} actual={row.actual[month]!} />
                 ))}
-                <td className="num total">{formatHours(estimateTotal)}</td>
-                <td className="num total">{formatHours(row.deviation.actual)}</td>
+                <td className="num total">{formatHours(estimateTotal)} h</td>
+                <td className="num total">{formatHours(row.deviation.actual)} h</td>
                 <DeviationTotal deviation={row.deviation} />
               </tr>
             );
@@ -89,7 +89,7 @@ export function CompareGrid({ year, comparison }: Props) {
                     {formatHours(estimate)}
                   </td>
                 ))}
-                <td className="num total">{formatHours(estimateTotal)}</td>
+                <td className="num total">{formatHours(estimateTotal)} h</td>
                 <td className="num total" />
                 <td className="num total" />
               </tr>
@@ -103,8 +103,8 @@ export function CompareGrid({ year, comparison }: Props) {
             {comparison.months.map((month, index) => (
               <CompareCell key={index} estimate={month.reportedEstimate} actual={month.actual} />
             ))}
-            <td className="num total">{formatHours(comparison.estimateTotal)}</td>
-            <td className="num total">{formatHours(comparison.deviation.actual)}</td>
+            <td className="num total">{formatHours(comparison.estimateTotal)} h</td>
+            <td className="num total">{formatHours(comparison.deviation.actual)} h</td>
             <DeviationTotal deviation={comparison.deviation} />
           </tr>
         </tfoot>

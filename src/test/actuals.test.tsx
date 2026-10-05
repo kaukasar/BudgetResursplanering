@@ -65,7 +65,7 @@ describe('estimat och utfall', () => {
     expect(within(annaRow).queryByRole('button', { name: 'Fyll från estimat' })).toBeNull();
   });
 
-  it('visar samma avvikelse i initiativhuvud och summarad vid delvis rapportering, men inte som nyckeltal', async () => {
+  it('visar avvikelsen i summeringsraden vid delvis rapportering, men inte i rubriken eller som nyckeltal', async () => {
     // Anna och Kalle har estimat i januari, men bara Anna har rapporterat utfall.
     let d = seed();
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100);
@@ -77,9 +77,8 @@ describe('estimat och utfall', () => {
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
 
     const portal = initiativeSection('Portal');
-    const headerDeviation = within(portal).getByText(`Avvikelse ${YEAR}`, { selector: '.label' });
-    expect(headerDeviation.nextElementSibling).toHaveTextContent('−10 h');
-    // Nyckeltalet för avvikelse är borttaget.
+    // Avvikelsen visas varken i initiativets rubrik eller som nyckeltal.
+    expect(within(portal).queryByText(`Avvikelse ${YEAR}`, { selector: '.label' })).toBeNull();
     expect(screen.queryByText('Avvikelse mot estimat')).toBeNull();
 
     const footer = within(portal).getAllByRole('row').at(-1)!;
@@ -106,10 +105,9 @@ describe('estimat och utfall', () => {
     const cells = within(annaRow).getAllByRole('cell');
     expect(cells[0]).toHaveTextContent('90▼10'); // januari: utfall 90, 10 h under estimat
     expect(cells[1]).toHaveTextContent('–'); // februari: inget utfall rapporterat
-    expect(cells[12]).toHaveTextContent('200'); // estimat helår
-    expect(cells[13]).toHaveTextContent('90'); // utfall
+    expect(cells[12]).toHaveTextContent('200 h'); // estimat helår
+    expect(cells[13]).toHaveTextContent('90 h'); // utfall
     expect(cells[14]).toHaveTextContent('−10'); // avvikelse, bara på rapporterade månader
-    expect(portal).toHaveTextContent('Avvikelse 2026−10 h');
 
     await user.click(within(annaRow).getByRole('button', { name: 'Visa estimat per månad för Anna' }));
     expect(within(portal).getByText(`Estimat ${YEAR}`)).toBeInTheDocument();
@@ -199,7 +197,7 @@ describe('estimat och utfall', () => {
     expect(statValue(`Prognos kostnad ${YEAR}`)).toBe('85 000 kr');
   });
 
-  it('jämförelsevyn visar initiativets utfallskostnad bredvid avvikelse och prognos', async () => {
+  it('jämförelsevyn visar initiativets utfallskostnad och prognos, uppdelade i intern och extern', async () => {
     let d = seed();
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100); // estimat 65 000
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 1, 10); // estimat 10 000
@@ -214,18 +212,15 @@ describe('estimat och utfall', () => {
       [...initiativeSection('Portal').querySelectorAll('.initiative-head .totals > div > .label')].map(
         (l) => `${l.textContent}: ${l.nextElementSibling!.textContent}`,
       );
-    expect(headerTotals()).toEqual([
-      `Avvikelse ${YEAR}: −8 h`, // (90 − 100) + (12 − 10)
-      `Utfallskostnad ${YEAR}: 70 500 kr`,
-      `Prognos ${YEAR}: 75 000 kr`,
-    ]);
+    // Ingen Extern personal är kopplad, så bara de interna kostnaderna visas.
+    expect(headerTotals()).toEqual([`Utfall intern ${YEAR}: 70 500 kr`, `Prognos intern ${YEAR}: 75 000 kr`]);
 
     // Nytt utfall slår igenom på utfallskostnaden men inte på prognosen.
     await user.click(screen.getByRole('button', { name: 'Utfall' }));
     await user.type(actualCell('Anna', 'mars', 'Portal'), '20'); // + 13 000
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
-    expect(headerTotals()).toContain(`Utfallskostnad ${YEAR}: 83 500 kr`);
-    expect(headerTotals()).toContain(`Prognos ${YEAR}: 75 000 kr`);
+    expect(headerTotals()).toContain(`Utfall intern ${YEAR}: 83 500 kr`);
+    expect(headerTotals()).toContain(`Prognos intern ${YEAR}: 75 000 kr`);
   });
 
   it('utfallet i budgetrutan är grönt t.o.m. 100 % och rött från 101 %, både siffra och stapel', async () => {
@@ -325,9 +320,9 @@ describe('estimat och utfall', () => {
     // Jämförelsevyn: prognosen (kostnad) är fortfarande den estimerade kostnaden.
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
     expect(statValue(`Prognos kostnad ${YEAR}`)).toBe('75 000 kr');
-    expect(within(initiativeSection('Portal')).getByText(`Prognos ${YEAR}`).nextElementSibling!.textContent).toBe(
-      '75 000 kr',
-    );
+    expect(
+      within(initiativeSection('Portal')).getByText(`Prognos intern ${YEAR}`).nextElementSibling!.textContent,
+    ).toBe('75 000 kr');
 
     // Ändras estimatet ändras prognosen – det är enbart estimatet som styr den.
     await user.click(screen.getByRole('button', { name: 'Estimat' }));

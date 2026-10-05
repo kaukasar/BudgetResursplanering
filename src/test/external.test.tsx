@@ -55,7 +55,7 @@ describe('kostnaden i tabellhuvudet', () => {
       (label) => `${label.textContent}: ${label.nextElementSibling!.textContent}`,
     );
 
-  it('delas upp i intern och extern prognos och utfall i estimat- och utfallsvyn, men inte i jämförelsevyn', async () => {
+  it('delas upp i intern och extern prognos och utfall i alla vyer', async () => {
     let d = seedWithExternalStaff();
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 20); // 13 000
     d = ops.setEstimate(d, 'portal', EXTERNAL_STAFF_ID, YEAR, 0, 10); // 8 750
@@ -79,13 +79,18 @@ describe('kostnaden i tabellhuvudet', () => {
       '14 h',
     );
 
-    // Jämförelsevyn är oförändrad.
+    // Jämförelsevyn visar både utfall och prognos, men inte avvikelsen (den syns i summeringsraden).
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
-    expect(headerFigures('Portal').map((figure) => figure.split(':')[0])).toEqual([
-      `Avvikelse ${YEAR}`,
-      `Utfallskostnad ${YEAR}`,
-      `Prognos ${YEAR}`,
+    expect(headerFigures('Portal')).toEqual([
+      `Utfall intern ${YEAR}: 6 500 kr`,
+      `Utfall extern ${YEAR}: 3 500 kr`,
+      `Prognos intern ${YEAR}: 13 000 kr`,
+      `Prognos extern ${YEAR}: 8 750 kr`,
     ]);
+    const footerTotals = [
+      ...within(initiativeSection('Portal')).getAllByRole('row').at(-1)!.querySelectorAll('td.total'),
+    ];
+    expect(footerTotals.map((cell) => cell.textContent)).toEqual(['30 h', '14 h', '−16−53 %']);
   });
 
   it('den externa kostnaden visas bara när Extern personal är kopplad', () => {
