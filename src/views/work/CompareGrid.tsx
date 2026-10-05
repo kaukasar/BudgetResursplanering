@@ -44,7 +44,7 @@ export function CompareGrid({ year, comparison }: Props) {
               Utfall h
             </th>
             <th scope="col" className="col-total" title={DEVIATION_EXPLANATION}>
-              Avvikelse
+              Avvikelse h
             </th>
           </tr>
         </thead>
@@ -146,7 +146,7 @@ function DeviationTotal({ deviation }: { deviation: Deviation }) {
   const directionClass = deviation.diff > 0 ? 'dev-up' : deviation.diff < 0 ? 'dev-down' : undefined;
   return (
     <td className="num total" title={DEVIATION_EXPLANATION}>
-      <span className={directionClass}>{formatSignedHours(deviation.diff)}</span>
+      <span className={directionClass}>{formatSignedHours(deviation.diff)} h</span>
       {deviation.percent !== null && <span className="dev">{formatSignedHours(Math.round(deviation.percent))} %</span>}
     </td>
   );

@@ -90,7 +90,7 @@ describe('kostnaden i tabellhuvudet', () => {
     const footerTotals = [
       ...within(initiativeSection('Portal')).getAllByRole('row').at(-1)!.querySelectorAll('td.total'),
     ];
-    expect(footerTotals.map((cell) => cell.textContent)).toEqual(['30 h', '14 h', '−16−53 %']);
+    expect(footerTotals.map((cell) => cell.textContent)).toEqual(['30 h', '14 h', '−16 h−53 %']);
   });
 
   it('den externa kostnaden visas bara när Extern personal är kopplad', () => {

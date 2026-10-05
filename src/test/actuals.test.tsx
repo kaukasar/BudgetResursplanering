@@ -84,7 +84,7 @@ describe('estimat och utfall', () => {
     const footer = within(portal).getAllByRole('row').at(-1)!;
     const footerCells = within(footer).getAllByRole('cell');
     expect(footerCells[0]).toHaveTextContent('90▼10'); // januari jämförs bara mot Annas 100 h
-    expect(footerCells[14]).toHaveTextContent('−10');
+    expect(footerCells[14]).toHaveTextContent('−10 h');
   });
 
   it('jämförelsevyn är skrivskyddad och visar avvikelse mot estimat', async () => {
@@ -107,7 +107,8 @@ describe('estimat och utfall', () => {
     expect(cells[1]).toHaveTextContent('–'); // februari: inget utfall rapporterat
     expect(cells[12]).toHaveTextContent('200 h'); // estimat helår
     expect(cells[13]).toHaveTextContent('90 h'); // utfall
-    expect(cells[14]).toHaveTextContent('−10'); // avvikelse, bara på rapporterade månader
+    expect(cells[14]).toHaveTextContent('−10 h'); // avvikelse, bara på rapporterade månader
+    expect(within(portal).getByRole('columnheader', { name: 'Avvikelse h' })).toBeInTheDocument();
 
     await user.click(within(annaRow).getByRole('button', { name: 'Visa estimat per månad för Anna' }));
     expect(within(portal).getByText(`Estimat ${YEAR}`)).toBeInTheDocument();
