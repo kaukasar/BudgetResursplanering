@@ -14,6 +14,12 @@ const withPlainSpaces = (text: string) => text.replace(HARD_SPACES, ' ');
 export const plural = (count: number, singular: string, pluralForm: string) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
+/** "Portal", "Portal och App", "App, Lager och Portal" – i den ordning namnen anges. */
+export function listText(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} och ${names.at(-1)}`;
+}
+
 /** Heltal med tusentalsavgränsare, avrundat till närmaste heltal. */
 const formatWholeNumber = (value: number) => withPlainSpaces(wholeNumberFormat.format(value));
 

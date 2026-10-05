@@ -1,5 +1,5 @@
 import { KeyFigure } from '../../components/KeyFigure';
-import { calculateBudgetStatus } from '../../domain/budget';
+import { budgetStatuses } from '../../domain/budget';
 import { initiativeSectionId, summarizeInitiative } from '../../domain/calc';
 import { compareInitiative, type InitiativeComparison } from '../../domain/comparison';
 import { formatHours, formatSek, formatSignedHours } from '../../domain/format';
@@ -21,7 +21,7 @@ interface Props {
 /** Ett initiativ i arbetsläget: huvud med nyckeltal och budget, och en tabell för vald vy. */
 export function InitiativeTable({ data, initiative, year, view }: Props) {
   const sectionId = initiativeSectionId(data, initiative);
-  const budget = calculateBudgetStatus(data, initiative);
+  const budgets = budgetStatuses(data, initiative);
   const comparison = view === 'compare' ? compareInitiative(data, initiative, year) : undefined;
   const hasPeople = initiative.personIds.length > 0;
 
@@ -41,22 +41,18 @@ export function InitiativeTable({ data, initiative, year, view }: Props) {
           {view === 'estimate' && <EstimateKeyFigures data={data} initiative={initiative} year={year} />}
           {view === 'actual' && <ActualKeyFigures data={data} initiative={initiative} year={year} />}
           {comparison && <CompareKeyFigures data={data} initiative={initiative} year={year} comparison={comparison} />}
-          {budget && <BudgetSummary budget={budget} initiative={initiative} year={year} view={view} />}
+          {budgets.map((budget) => (
+            <BudgetSummary key={budget.part} budget={budget} initiative={initiative} year={year} view={view} />
+          ))}
         </div>
       </header>
 
       {!hasPeople ? (
         <div className="empty small">Ingen personal är kopplad till initiativet. Lägg till personal i adminläget.</div>
       ) : comparison ? (
-        <CompareGrid data={data} year={year} comparison={comparison} initiativeSectionId={sectionId} />
+        <CompareGrid year={year} comparison={comparison} />
       ) : (
-        <EditGrid
-          data={data}
-          initiative={initiative}
-          year={year}
-          measure={view === 'actual' ? 'actual' : 'estimate'}
-          initiativeSectionId={sectionId}
-        />
+        <EditGrid data={data} initiative={initiative} year={year} measure={view === 'actual' ? 'actual' : 'estimate'} />
       )}
     </section>
   );

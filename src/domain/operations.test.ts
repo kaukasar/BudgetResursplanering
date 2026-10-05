@@ -1,7 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { domainFixture } from '../test/domainFixture';
-import { hoursLostByUpdate, initiativeSectionId, personCapacity, storedHoursForInitiative } from './calc';
+import {
+  hoursLostByUpdate,
+  initiativeSectionId,
+  lockedPersonIds,
+  personCapacity,
+  storedHoursForInitiative,
+} from './calc';
 import * as ops from './operations';
 import { DEFAULT_SECTION, parseAppData } from './serialization';
 import { emptyData, isEmptyData, type TajmaClass } from './types';
@@ -14,7 +20,7 @@ describe('heltal', () => {
     expect(() => ops.updatePerson(d, 'anna', { hourlyRate: 650.5 })).toThrow(/heltal/);
     expect(() => ops.updatePerson(d, 'anna', { monthlyHours: 159.5 })).toThrow(/heltal/);
     expect(() => ops.updateTypeSettings(d, 'employee', { hourlyRate: 625.5 })).toThrow(/heltal/);
-    expect(() => ops.updateInitiative(d, 'i1', { budget: 1000.5 })).toThrow(/heltal/);
+    expect(() => ops.updateInitiative(d, 'i1', { internalBudget: 1000.5 })).toThrow(/heltal/);
     expect(ops.setEstimate(d, 'i1', 'anna', 2026, 0, 8).estimates.i1?.anna?.[2026]?.[0]).toBe(8);
   });
 });
@@ -71,25 +77,48 @@ describe('sektioner', () => {
     expect(() => ops.addProductOwner(emptyData(), { id: 'x', name: 'X', sectionId: 's1' })).toThrow(/sektion/);
   });
 
-  it('kan bara raderas när den saknar personal och produktägare', () => {
+  it('kan bara raderas när den är tom; allt innehåll flyttas tillsammans till en annan sektion', () => {
     let d = domainFixture();
-    expect(() => ops.deleteSection(d, 's1')).toThrow(/måste flyttas eller raderas/);
+    d = ops.setEstimate(d, 'i1', 'anna', 2026, 0, 10);
+    expect(() => ops.deleteSection(d, 's1')).toThrow(/flyttas till en annan sektion/);
     expect(ops.deleteSection(d, 's2').sections.map((s) => s.id)).toEqual(['s1']);
 
-    d = ops.updatePerson(d, 'anna', { sectionId: 's2' });
+    d = ops.moveSectionContents(d, 's1', 's2');
+    expect(new Set([...d.people, ...d.productOwners].map((x) => x.sectionId))).toEqual(new Set(['s2']));
+    // Personal, produktägare och initiativ hamnar i samma sektion, så ingen tid låses.
+    const portal = d.initiatives.find((i) => i.id === 'i1')!;
+    expect(initiativeSectionId(d, portal)).toBe('s2');
+    expect(lockedPersonIds(d, portal)).toEqual([]);
+    expect(ops.deleteSection(d, 's1').sections.map((s) => s.id)).toEqual(['s2']);
+    expect(() => ops.moveSectionContents(d, 's2', 's2')).toThrow(/annan sektion/);
+  });
+
+  it('raderad personal räknas som innehåll och flyttas med', () => {
+    let d = domainFixture();
+    d = ops.deletePerson(d, 'anna');
     d = ops.updatePerson(d, 'kalle', { sectionId: 's2' });
-    d = ops.updateProductOwner(d, 'po1', { sectionId: 's2' });
-    d = ops.updateProductOwner(d, 'po2', { sectionId: 's2' });
+    d = ops.deleteInitiative(d, 'i1');
+    d = ops.deleteInitiative(d, 'i2');
+    d = ops.deleteProductOwner(d, 'po1');
+    d = ops.deleteProductOwner(d, 'po2');
+    // Bara den raderade Anna finns kvar i s1, men även hon måste flyttas innan sektionen kan raderas.
+    expect(ops.sectionContents(d, 's1').deletedPeople.map((p) => p.id)).toEqual(['anna']);
+    expect(() => ops.deleteSection(d, 's1')).toThrow(/flyttas till en annan sektion/);
+    d = ops.moveSectionContents(d, 's1', 's2');
     expect(ops.deleteSection(d, 's1').sections.map((s) => s.id)).toEqual(['s2']);
   });
 
-  it('initiativ följer produktägarens sektion', () => {
+  it('produktägare med initiativ kan inte byta sektion förrän initiativen fått en ny produktägare', () => {
     let d = domainFixture();
-    const portal = () => d.initiatives.find((i) => i.id === 'i1')!;
-    expect(initiativeSectionId(d, portal())).toBe('s1');
+    expect(() => ops.updateProductOwner(d, 'po1', { sectionId: 's2' })).toThrow(/ny produktägare/);
+    expect(ops.updateProductOwner(d, 'po1', { name: 'Petra L' }).productOwners[0]!.name).toBe('Petra L');
+
+    d = ops.updateInitiative(d, 'i1', { productOwnerId: 'po2' });
+    d = ops.updateInitiative(d, 'i2', { productOwnerId: 'po2' });
     d = ops.updateProductOwner(d, 'po1', { sectionId: 's2' });
-    expect(initiativeSectionId(d, portal())).toBe('s2');
-    expect(ops.sectionContents(d, 's2').initiatives.map((i) => i.id)).toEqual(['i1', 'i2']);
+    // Initiativen stannar i sin sektion med sin personal.
+    expect(d.initiatives.map((i) => initiativeSectionId(d, i))).toEqual(['s1', 's1']);
+    expect(d.initiatives[0]!.personIds).toEqual(['anna', 'kalle']);
   });
 
   it('initiativ kan bara byta till en produktägare i samma sektion', () => {
@@ -99,18 +128,27 @@ describe('sektioner', () => {
     expect(ops.updateInitiative(d, 'i1', { productOwnerId: 'po2' }).initiatives[0]!.productOwnerId).toBe('po2');
   });
 
-  it('personal kan lånas ut till andra sektioner och överallokering räknas över alla sektioner', () => {
+  it('personal kan bara kopplas till initiativ i sin egen sektion', () => {
     let d = domainFixture();
     d = ops.addProductOwner(d, { id: 'po3', name: 'Stina', sectionId: 's2' });
-    d = ops.addInitiative(d, {
-      id: 'i3',
-      name: 'Annan sektion',
-      productOwnerId: 'po3',
-      personIds: ['anna'],
-      years: [2026],
+    const base = { id: 'i3', name: 'Annan sektion', productOwnerId: 'po3', years: [2026] };
+    expect(() => ops.addInitiative(d, { ...base, personIds: ['anna'] })).toThrow(/annan sektion/);
+    d = ops.addPerson(d, {
+      id: 'bo',
+      name: 'Bo',
+      type: 'employee',
+      sectionId: 's2',
+      hourlyRate: null,
+      monthlyHours: null,
     });
+    d = ops.addInitiative(d, { ...base, personIds: ['bo'] });
+    expect(() => ops.updateInitiative(d, 'i3', { personIds: ['bo', 'anna'] })).toThrow(/annan sektion/);
+  });
+
+  it('överallokering räknas över alla initiativ där personen förekommer', () => {
+    let d = domainFixture();
     d = ops.setEstimate(d, 'i1', 'anna', 2026, 0, 100);
-    d = ops.setEstimate(d, 'i3', 'anna', 2026, 0, 70);
+    d = ops.setEstimate(d, 'i2', 'anna', 2026, 0, 70);
     expect(personCapacity(d, d.people[0]!, 2026).monthTotals[0]).toBe(170);
     expect(personCapacity(d, d.people[0]!, 2026).overallocated[0]).toBe(true);
   });
@@ -154,25 +192,27 @@ describe('personal', () => {
     ).toThrow(ops.DomainError);
   });
 
-  it('radering tar bort personen ur initiativ och raderar personens timmar', () => {
+  it('radering behåller personens tid men låser den; kopplingar utan tid tas bort', () => {
     let d = domainFixture();
     d = ops.setEstimate(d, 'i1', 'anna', 2026, 0, 10);
     d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 5);
     d = ops.deletePerson(d, 'anna');
 
-    expect(d.people.map((p) => p.id)).toEqual(['kalle']);
-    expect(d.initiatives.map((i) => i.personIds)).toEqual([['kalle'], []]);
-    expect(storedHoursForInitiative(d, 'i1')).toBe(5);
+    expect(d.people.find((p) => p.id === 'anna')).toMatchObject({ name: 'Anna', deleted: true });
+    expect(d.initiatives.map((i) => i.personIds)).toEqual([['anna', 'kalle'], []]); // i2: Anna utan tid
+    expect(storedHoursForInitiative(d, 'i1')).toBe(15);
+    expect(() => ops.setEstimate(d, 'i1', 'anna', 2026, 1, 1)).toThrow(/låst \(raderad\)/);
+    expect(() => ops.updatePerson(d, 'anna', { name: 'Ny' })).toThrow(/raderad/);
   });
 });
 
 describe('produktägare', () => {
   it('kan inte raderas så länge initiativ är kopplade', () => {
     const d = domainFixture();
-    expect(() => ops.deleteProductOwner(d, 'po1')).toThrow(/2 kopplade initiativ/);
+    expect(() => ops.deleteProductOwner(d, 'po1')).toThrow(/2 initiativ som först måste få en ny produktägare/);
   });
 
-  it('kan raderas när initiativen flyttats eller raderats', () => {
+  it('kan raderas när initiativen fått en ny produktägare eller raderats', () => {
     let d = domainFixture();
     d = ops.updateInitiative(d, 'i1', { productOwnerId: 'po2' });
     d = ops.deleteInitiative(d, 'i2');

@@ -47,8 +47,8 @@ describe('utfall', () => {
   });
 
   it('prognosen (estimerad kostnad) påverkas aldrig av utfall', () => {
-    let d = ops.updateInitiative(domainFixture(), 'i1', { budget: 200_000 });
-    d = ops.updateInitiative(d, 'i2', { budget: 50_000 });
+    let d = ops.updateInitiative(domainFixture(), 'i1', { internalBudget: 200_000 });
+    d = ops.updateInitiative(d, 'i2', { internalBudget: 50_000 });
     for (let m = 0; m < 12; m++) {
       d = ops.setEstimate(d, 'i1', 'anna', 2026, m, 10 + m);
       d = ops.setEstimate(d, 'i1', 'kalle', 2026, m, 5);
@@ -56,7 +56,7 @@ describe('utfall', () => {
     }
     const snapshot = (x: AppData) => ({
       budgets: x.initiatives.map((i) => {
-        const b = calculateBudgetStatus(x, i)!;
+        const b = calculateBudgetStatus(x, i, 'internal')!;
         return [b.plannedCost, b.plannedPercent, b.overBudget];
       }),
       estimateCost: x.initiatives.map((i) => i.years.map((y) => summarizeInitiative(x, i, y, 'estimate').totalCost)),
@@ -78,7 +78,7 @@ describe('utfall', () => {
       }
     }
     // Utfallet självt har däremot ändrats – och kan överstiga budgeten utan att prognosen gör det.
-    const b = calculateBudgetStatus(d, d.initiatives[0]!)!;
+    const b = calculateBudgetStatus(d, d.initiatives[0]!, 'internal')!;
     expect(b.actualCost).toBeGreaterThan(b.budget);
     expect(b.overBudget).toBe(false);
     d = ops.fillActualsFromEstimate(d, 'i1', 'anna', 2026, 11);
@@ -102,11 +102,12 @@ describe('utfall', () => {
   });
 
   it('budget visar prognos (estimat) och utfall över initiativets alla år', () => {
-    let d = ops.updateInitiative(domainFixture(), 'i2', { budget: 100_000 });
+    let d = ops.updateInitiative(domainFixture(), 'i2', { internalBudget: 100_000 });
     d = ops.setEstimate(d, 'i2', 'anna', 2026, 0, 40); // 26 000
     d = ops.setEstimate(d, 'i2', 'anna', 2027, 0, 60); // 39 000
     d = ops.setActual(d, 'i2', 'anna', 2026, 0, 80); // 52 000
-    expect(calculateBudgetStatus(d, d.initiatives[1]!)).toEqual({
+    expect(calculateBudgetStatus(d, d.initiatives[1]!, 'internal')).toEqual({
+      part: 'internal',
       budget: 100_000,
       plannedCost: 65_000, // prognos = estimat för båda åren
       plannedPercent: 65,
@@ -119,10 +120,10 @@ describe('utfall', () => {
 
   it('utfallet räknas som över budget från 101 % (avrundat som i gränssnittet), oberoende av prognosen', () => {
     // Kalle kostar 1 000 kr/h och budgeten är 250 000 kr, så 1 h = 0,4 %.
-    let d = ops.updateInitiative(domainFixture(), 'i1', { budget: 250_000 });
+    let d = ops.updateInitiative(domainFixture(), 'i1', { internalBudget: 250_000 });
     d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 500); // prognos 200 % – över budget
     const status = (hours: number) =>
-      calculateBudgetStatus(ops.setActual(d, 'i1', 'kalle', 2026, 0, hours), d.initiatives[0]!)!;
+      calculateBudgetStatus(ops.setActual(d, 'i1', 'kalle', 2026, 0, hours), d.initiatives[0]!, 'internal')!;
 
     expect(status(125)).toMatchObject({ actualPercent: 50, actualOverBudget: false, overBudget: true });
     expect(status(250).actualOverBudget).toBe(false); // 100 %
@@ -140,7 +141,7 @@ describe('utfall', () => {
     expect(getMonthActuals(d, 'i1', 'anna', 2026).slice(0, 4)).toEqual([10, 25, 30, null]);
   });
 
-  it('raderas tillsammans med personen, initiativet, eller när personen/året tas bort', () => {
+  it('raderas med initiativet eller när personen/året tas bort, men finns kvar när personen raderas', () => {
     let d = domainFixture();
     d = ops.setActual(d, 'i1', 'anna', 2026, 0, 10);
     d = ops.setActual(d, 'i1', 'kalle', 2026, 0, 5);
@@ -151,7 +152,7 @@ describe('utfall', () => {
     ]);
     expect(storedHoursForInitiative(ops.updateInitiative(d, 'i1', { personIds: ['anna'] }), 'i1', 'actual')).toBe(10);
     expect(storedHoursForInitiative(ops.updateInitiative(d, 'i2', { years: [2026] }), 'i2', 'actual')).toBe(0);
-    expect(storedHoursForInitiative(ops.deletePerson(d, 'anna'), 'i1', 'actual')).toBe(5);
+    expect(storedHoursForInitiative(ops.deletePerson(d, 'anna'), 'i1', 'actual')).toBe(15); // låst, men kvar
     expect(ops.deleteInitiative(d, 'i1').actuals.i1).toBeUndefined();
   });
 

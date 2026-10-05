@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useConfirm } from '../../components/confirm-context';
+import { activePeople } from '../../domain/calc';
 import { toAnalysisCsv } from '../../domain/csv';
 import { plural } from '../../domain/format';
 import { parseAppData, toExportFile } from '../../domain/serialization';
@@ -14,7 +15,7 @@ type Status = { kind: 'success' | 'error'; text: string } | null;
 function describeContents(data: AppData): string {
   return [
     plural(data.sections.length, 'sektion', 'sektioner'),
-    plural(data.people.length, 'person', 'personer'),
+    plural(activePeople(data).length, 'person', 'personer'),
     `${data.productOwners.length} produktägare och ${data.initiatives.length} initiativ`,
   ].join(', ');
 }

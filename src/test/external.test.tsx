@@ -49,6 +49,38 @@ describe('Extern personal i arbetsläget', () => {
   });
 });
 
+describe('intern och extern budget i tabellhuvudet', () => {
+  it('visas var för sig: intern mot personal i sektionen, extern mot Extern personal', async () => {
+    let d = ops.updateInitiative(seedWithExternalStaff(), 'portal', {
+      internalBudget: 100_000,
+      externalBudget: 10_000,
+    });
+    d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 40); // 26 000 → 26 % av den interna
+    d = ops.setEstimate(d, 'portal', EXTERNAL_STAFF_ID, YEAR, 0, 8); // 7 000 → 70 % av den externa
+    d = ops.setActual(d, 'portal', EXTERNAL_STAFF_ID, YEAR, 0, 12); // 10 500 → 105 % av den externa
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp();
+
+    const part = (name: string) => within(initiativeSection('Portal')).getByRole('group', { name });
+    expect(part('Intern budget')).toHaveTextContent('Intern budget100 000 kr');
+    expect(part('Intern budget')).toHaveTextContent('Prognos26 %');
+    expect(part('Extern budget')).toHaveTextContent('Extern budget10 000 kr');
+    expect(part('Extern budget')).toHaveTextContent('Prognos70 %');
+
+    await user.click(screen.getByRole('button', { name: 'Utfall' }));
+    expect(part('Intern budget')).toHaveTextContent('Utfall0 %');
+    const externalActual = within(part('Extern budget')).getByText('Utfall', {
+      selector: '.label',
+    }).nextElementSibling!;
+    expect(externalActual).toHaveTextContent('105 %');
+    expect(externalActual).toHaveClass('over'); // rött från 101 %, per budgetdel
+    expect(within(part('Intern budget')).getByRole('progressbar')).toHaveAccessibleName(
+      'Utfall och prognos av den interna budgeten för Portal',
+    );
+  });
+});
+
 describe('Extern personal i adminläget', () => {
   it('kopplas med en egen kryssruta som inte räknas som en person och inte påverkas av sektionsfiltret', async () => {
     const user = userEvent.setup();

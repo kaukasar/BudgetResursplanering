@@ -22,9 +22,10 @@ interface DataState {
   addSection: (name: string) => string;
   renameSection: (id: string, name: string) => void;
   deleteSection: (id: string) => void;
+  moveSectionContents: (fromSectionId: string, toSectionId: string) => void;
 
-  addPerson: (person: Omit<Person, 'id'>) => string;
-  updatePerson: (id: string, patch: Partial<Omit<Person, 'id'>>) => void;
+  addPerson: (person: Omit<Person, 'id' | 'deleted'>) => string;
+  updatePerson: (id: string, patch: ops.PersonPatch) => void;
   deletePerson: (id: string) => void;
 
   addProductOwner: (name: string, sectionId: string) => string;
@@ -81,6 +82,8 @@ export const useDataStore = create<DataState>()(
         addSection: (name) => create((data, id) => ops.addSection(data, { id, name })),
         renameSection: (id, name) => apply((data) => ops.renameSection(data, id, name)),
         deleteSection: (id) => apply((data) => ops.deleteSection(data, id)),
+        moveSectionContents: (fromSectionId, toSectionId) =>
+          apply((data) => ops.moveSectionContents(data, fromSectionId, toSectionId)),
 
         addPerson: (person) => create((data, id) => ops.addPerson(data, { ...person, id })),
         updatePerson: (id, patch) => apply((data) => ops.updatePerson(data, id, patch)),

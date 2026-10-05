@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { useConfirm } from '../../components/confirm-context';
-import { effectiveMonthlyHours, effectiveRate, storedHoursForPersonInInitiative } from '../../domain/calc';
-import { formatHours, formatSek, hoursLossText, plural } from '../../domain/format';
+import {
+  activePeople,
+  effectiveMonthlyHours,
+  effectiveRate,
+  storedHoursForPersonInInitiative,
+} from '../../domain/calc';
+import { formatHours, formatSek, hoursPairText, plural } from '../../domain/format';
 import { joinSorted } from '../../domain/sorting';
-import { PERSON_TYPE_LABEL, type Initiative, type Measure, type Person } from '../../domain/types';
+import { PERSON_TYPE_LABEL, type Initiative, type Person } from '../../domain/types';
 import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { MISSING, sectionName } from '../labels';
@@ -21,7 +26,8 @@ export function PeopleAdmin() {
   const noSections = data.sections.length === 0;
   const initiativesOf = (person: Person) => data.initiatives.filter((i) => i.personIds.includes(person.id));
   const initiativeNames = (person: Person) => joinSorted(initiativesOf(person).map((initiative) => initiative.name));
-  const { sortedRows: people, sortHeader } = useAdminSort('people', data.people, {
+  // Raderad personal visas inte; den finns kvar endast för den låsta tidens skull.
+  const { sortedRows: people, sortHeader } = useAdminSort('people', activePeople(data), {
     name: (person) => person.name,
     section: (person) => sectionName(data, person.sectionId),
     type: (person) => PERSON_TYPE_LABEL[person.type],
@@ -31,18 +37,11 @@ export function PeopleAdmin() {
   });
 
   const remove = async (person: Person) => {
-    const linked = initiativesOf(person);
-    const storedHours = (measure: Measure) =>
-      linked.reduce(
-        (total, initiative) => total + storedHoursForPersonInInitiative(data, initiative.id, person.id, measure),
-        0,
-      );
-    const loss = hoursLossText(storedHours('estimate'), storedHours('actual'));
     const confirmed = await confirm({
       title: 'Radera person',
       danger: true,
       confirmLabel: 'Radera',
-      message: <DeletePersonMessage person={person} linked={linked} loss={loss} />,
+      message: <DeletePersonMessage person={person} linked={initiativesOf(person)} />,
     });
     if (confirmed) deletePerson(person.id);
   };
@@ -134,23 +133,36 @@ function SourceTag({ isOwnValue }: { isOwnValue: boolean }) {
   return <span className={isOwnValue ? 'tag custom' : 'tag'}>{isOwnValue ? 'egen' : 'standard'}</span>;
 }
 
-function DeletePersonMessage({ person, linked, loss }: { person: Person; linked: Initiative[]; loss: string | null }) {
+/**
+ * Radering låser personens tid: den finns kvar och räknas med men kan inte ändras. Initiativ där
+ * personen saknar timmar kopplas bort.
+ */
+function DeletePersonMessage({ person, linked }: { person: Person; linked: Initiative[] }) {
+  const data = useDataStore((state) => state.data);
+  const hoursOn = (initiative: Initiative) =>
+    hoursPairText(
+      storedHoursForPersonInInitiative(data, initiative.id, person.id, 'estimate'),
+      storedHoursForPersonInInitiative(data, initiative.id, person.id, 'actual'),
+    );
+  const withHours = linked.filter((initiative) => hoursOn(initiative));
   return (
     <>
       <p>
-        Vill du radera <strong>{person.name}</strong>?
+        Vill du radera <strong>{person.name}</strong>? Personen kan inte väljas igen, men namnet kan användas av en ny
+        person.
       </p>
-      {linked.length > 0 && (
+      {withHours.length > 0 && (
         <>
-          <p>Personen tas bort från följande initiativ:</p>
+          <p>Tiden som redan registrerats finns kvar och räknas med, men låses och kan inte ändras:</p>
           <ul>
-            {linked.map((initiative) => (
-              <li key={initiative.id}>{initiative.name}</li>
+            {withHours.map((initiative) => (
+              <li key={initiative.id}>
+                {initiative.name}: {hoursOn(initiative)}
+              </li>
             ))}
           </ul>
         </>
       )}
-      {loss && <p className="over-text">{loss}</p>}
     </>
   );
 }

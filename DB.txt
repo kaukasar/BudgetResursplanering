@@ -77,7 +77,7 @@ Primärnycklar
 Datatyper för tal
   Timmar per månad och arbetstid   NUMBER(6)      heltal, upp till 999 999 h
   Timkostnad                       NUMBER(10)     heltal, SEK/h
-  Budget                           NUMBER(15)     heltal, SEK
+  Intern och extern budget         NUMBER(15)     heltal, SEK
   År                               NUMBER(4)
   Månad                            NUMBER(2)      1–12
 
@@ -150,8 +150,9 @@ Behörighet
   Namnkolumner (NAME) är VARCHAR2(200 CHAR) och obligatoriska, med ett kontrollvillkor om att
   namnet inte får bestå av enbart blanksteg. I Oracle är en tom sträng detsamma som NULL, så
   kravet att kolumnen inte får vara NULL stoppar även tomma namn. Backend tar bort inledande och
-  avslutande blanksteg innan namnet sparas, precis som appen gör i dag. Namn behöver inte vara
-  unika (se avsnitt 12).
+  avslutande blanksteg innan namnet sparas, precis som appen gör i dag. Namnen är unika i hela
+  systemet utan hänsyn till versaler och gemener: varje tabell får ett funktionsbaserat unikt index
+  på UPPER(TRIM(NAME)). För personal gäller det bara aktiv personal (se 4.4).
 
 
 4.1 PERSON_TYPE – personaltyp och globala standardvärden (2.2, 3.2)
@@ -212,7 +213,15 @@ Behörighet
                                                     typens standardvärde gäller. Minst 0.
   MONTHLY_HOURS     NUMBER(6)                 Ja    Egen arbetstid i h/mån. NULL betyder att
                                                     typens standardvärde gäller. Minst 0.
+  IS_DELETED        NUMBER(1)                 Nej   1 = raderad, 0 = aktiv. Standard 0. Endast
+                                                    0 eller 1.
   + gemensamma kolumner
+
+  Raderad personal (claude.md 2.8 och 3.2)
+  En person tas aldrig bort fysiskt. Radering sätter IS_DELETED = 1: personen finns kvar så att den
+  tid som redan registrerats kan visas och räknas, men tiden är låst och personen kan inte väljas
+  igen. Namnet får användas av en ny person, så det unika indexet gäller bara aktiv personal:
+  UPPER(TRIM(NAME)) när IS_DELETED = 0, annars NULL (rader med NULL ingår inte i ett unikt index).
 
   Den timkostnad och arbetstid som gäller för personen (eget värde, annars typens) beräknas i en
   vy (avsnitt 6) och lagras inte. Ändras typens standardvärde gäller det direkt för alla personer
@@ -252,8 +261,12 @@ Behörighet
   NAME              VARCHAR2(200 CHAR)        Nej   Namn.
   PRODUCT_OWNER_ID  VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PRODUCT_OWNER.ID, utan
                                                     kaskad.
-  BUDGET            NUMBER(15)                Ja    Totalbudget i SEK för initiativets alla år.
-                                                    NULL = ingen budget. Större än 0 om angiven.
+  INTERNAL_BUDGET   NUMBER(15)                Ja    Intern budget i SEK för initiativets alla år:
+                                                    tid från personal i sektionen, även låst tid.
+                                                    NULL = ingen. Större än 0 om angiven.
+  EXTERNAL_BUDGET   NUMBER(15)                Ja    Extern budget i SEK för initiativets alla år:
+                                                    tid från Extern personal. NULL = ingen.
+                                                    Större än 0 om angiven.
   TAJMA_CLASS       VARCHAR2(30 CHAR)         Ja    Främmande nyckel till TAJMA_CLASS.CODE.
                                                     NULL = tomt värde.
   + gemensamma kolumner
@@ -280,11 +293,12 @@ Behörighet
   ----------------  ------------------------  ----  ------------------------------------------------
   INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till INITIATIVE.ID, med
                                                     kaskad.
-  PERSON_ID         VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PERSON.ID, med kaskad.
+  PERSON_ID         VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PERSON.ID, utan kaskad
+                                                    (personal raderas aldrig fysiskt).
 
   Primärnyckeln är (INITIATIVE_ID, PERSON_ID), så en person kan inte kopplas två gånger till
-  samma initiativ. Att en person är inlånad, dvs. att hemsektionen skiljer sig från initiativets
-  sektion, beräknas och lagras inte.
+  samma initiativ. Personal kan bara kopplas till initiativ i sin egen sektion. Om tiden är låst,
+  dvs. personen har bytt sektion eller är raderad (claude.md 2.8), beräknas och lagras inte.
 
 
 4.9 TIME_ENTRY – estimat och utfall (2.5, 2.6)
@@ -337,8 +351,8 @@ Behörighet
      → Främmande nyckel utan kaskad.
   6. Ett initiativ kan raderas oavsett innehåll (3.4).
      → Kaskad: initiativets år och kopplad personal raderas och därmed all tid.
-  7. När en person raderas försvinner personens kopplingar, estimat och utfall (3.4).
-     → Kaskad från PERSON via INITIATIVE_PERSON till TIME_ENTRY.
+  7. När en person raderas finns personens tid kvar (claude.md 2.8 och 3.2).
+     → Personen markeras med IS_DELETED = 1 och raderas aldrig fysiskt.
   8. När en person eller ett år tas bort från ett initiativ raderas estimat och utfall (3.4).
      → Kaskad från INITIATIVE_PERSON respektive INITIATIVE_YEAR till TIME_ENTRY.
   9. Tid kan bara registreras för en person som är kopplad till initiativet och för något av
@@ -348,7 +362,7 @@ Behörighet
      → Primärnycklarna i INITIATIVE_PERSON och INITIATIVE_YEAR.
   11. Följande värden kontrolleras (2.2–2.6):
       - timmar, timkostnad och arbetstid är minst 0
-      - budget är större än 0
+      - intern och extern budget är större än 0 när de anges
       - år ligger mellan 1900 och 2200 och månad mellan 1 och 12
       - typ och tajmaklass har giltiga värden.
      → Kontrollvillkor och främmande nycklar.
@@ -367,6 +381,14 @@ Behörighet
   - Ett nytt initiativ måste ha minst en person kopplad. Ett befintligt initiativ får däremot sakna
     personal (5.3).
   - Ett befintligt initiativ får bara byta till en produktägare i samma sektion (3.4).
+  - Personal kan bara kopplas till initiativ i sin egen sektion, och raderad personal kan inte
+    kopplas alls (claude.md 5.3).
+  - Låst tid (personen har bytt sektion eller är raderad, claude.md 2.8) kan inte ändras, och ny
+    tid kan inte registreras för den. Kopplingar som blir låsta utan registrerad tid tas bort.
+  - En produktägare med initiativ kan inte byta sektion eller raderas förrän initiativen har fått
+    en ny produktägare i samma sektion (claude.md 3.3).
+  - En sektion får bara raderas när den är tom, även på raderad personal. Innehållet flyttas med
+    "Flytta allt": personal, produktägare och initiativ tillsammans (claude.md 3.1).
   - Raderingar som databasen avvisar (regel 4 och 5 ovan) kontrolleras av backend i förväg. Backend
     skickar då med listan över berörd personal, berörda produktägare eller initiativ, så att
     gränssnittet kan visa den som i dag. Databasens constraint skyddar om kontrollen skulle missas.
@@ -388,7 +410,7 @@ Följande lagras inte utan beräknas när data läses:
   - andel av budgeten för prognos och utfall
   - avvikelse: utfall minus estimat, bara för månader med rapporterat utfall
   - överallokering
-  - initiativets sektion och om en person är inlånad.
+  - initiativets sektion och om en persons tid är låst.
 
 Skälet är att timkostnaden alltid är den aktuella. Ändras den ska även historiskt utfall räknas om
 (5.1). Lagrade kostnader skulle behöva uppdateras i många rader vid varje ändring och riskera att
@@ -421,9 +443,11 @@ rapporter, t.ex. i Excel eller Power BI direkt mot databasen.
         respektive utfall.
 
   V_INITIATIVE_BUDGET
-    En rad per initiativ. Vyn innehåller budgeten, den estimerade kostnaden och utfallskostnaden
-    för initiativets alla år, samt andelen av budgeten i procent för båda. Avrundning och
-    färgregler, t.ex. rött från 101 %, hanteras i gränssnittet.
+    En rad per initiativ och budgetdel (intern eller extern) som initiativet har. Vyn innehåller
+    budgetdelen, beloppet, den estimerade kostnaden och utfallskostnaden för initiativets alla år
+    samt andelen av budgeten i procent för båda. Den interna delen räknar kostnaden för all
+    personal utom Extern personal (även låst tid), den externa delen kostnaden för Extern
+    personal. Avrundning och färgregler, t.ex. rött från 101 %, hanteras i gränssnittet.
 
 
 7. INDEX
@@ -488,8 +512,9 @@ data samtidigt. Schemat hanterar det så här:
   people[]                                         PERSON (hourlyRate och monthlyHours: null
                                                    blir NULL)
   productOwners[]                                  PRODUCT_OWNER
-  initiatives[]                                    INITIATIVE (budget och tajmaClass: null
-                                                   blir NULL)
+  initiatives[]                                    INITIATIVE (internalBudget, externalBudget
+                                                   och tajmaClass: null blir NULL; en äldre
+                                                   "budget" blir INTERNAL_BUDGET)
   initiatives[].years[]                            INITIATIVE_YEAR
   initiatives[].personIds[]                        INITIATIVE_PERSON (id:t 'extern' pekar på
                                                    systemraden för Extern personal)
@@ -562,27 +587,22 @@ Import, som ersätter all data (3.5). Allt görs i en transaktion:
 
 Följande beslut påverkar schemat och bör tas innan det byggs.
 
-  1. Unika namn
-     Appen tillåter i dag t.ex. två personer eller två sektioner med samma namn. Ska databasen
-     förhindra dubbletter, utan hänsyn till versaler och gemener? Om ja: för vilka entiteter, och
-     ska namnet vara unikt inom sektionen eller i hela databasen?
-
-  2. Ändringshistorik
+  1. Ändringshistorik
      Ska det gå att se när ett estimat eller utfall ändrades och vad det var före ändringen? Utan
      inloggning kan det inte registreras vem som ändrade. Historik kan läggas till senare utan att
      befintliga tabeller ändras, antingen med en loggtabell för tidsändringar eller med Oracle
      Flashback Data Archive.
 
-  3. Låsta perioder
+  2. Låsta perioder
      Du har nämnt att tidigare år kanske ska låsas i framtiden. Det kan läggas till med en tabell
      eller inställning för vilka perioder som är låsta, utan att befintliga tabeller ändras.
 
-  4. Timkostnad över tid
+  3. Timkostnad över tid
      I dag räknas historiskt utfall om när timkostnaden ändras, enligt ditt beslut. Om kostnaden i
      framtiden ska följa den timkostnad som gällde vid tillfället behövs en tabell med timkostnad
      per person och giltighetsperiod. Eftersom kostnader bara beräknas i vyerna blir det en
      avgränsad ändring.
 
-  5. Import från tidrapporteringssystemet
+  4. Import från tidrapporteringssystemet
      Om importen införs föreslås en separat tabell för mellanlagring av inlästa rader. Raderna
      kontrolleras där innan de förs över till TIME_ENTRY.

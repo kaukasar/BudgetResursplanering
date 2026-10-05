@@ -558,6 +558,13 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/* Intern och extern budget visas som var sitt block med belopp, prognos och utfall. */
+.initiative-head .budget-part {
+  display: flex;
+  gap: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+}
 .initiative-head .budget {
   min-width: 110px;
 }
@@ -734,6 +741,19 @@ select {
   outline: 2px solid var(--danger);
   outline-offset: -2px;
   background: var(--invalid-bg);
+}
+/* Låst tid (personen har bytt sektion eller är raderad): visas men kan inte ändras. */
+.grid .person.locked .name {
+  color: var(--muted);
+}
+.cell input[readonly] {
+  color: var(--muted);
+  background: var(--surface-2);
+  cursor: default;
+}
+.cell input[readonly]:hover,
+.cell input[readonly]:focus {
+  background: var(--surface-2);
 }
 /* I utfallsvyn visar tomma celler estimatet som ledtext. */
 .work.view-actual .cell input::placeholder {

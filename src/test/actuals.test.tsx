@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMonthActuals, getMonthEstimates } from '../domain/calc';
 import * as ops from '../domain/operations';
 import { useDataStore } from '../store/store';
-import { actualCell, cell, initiativeSection, renderApp, resetStores, seed, YEAR } from './helpers';
+import { actualCell, cell, initiativeSection, renderApp, resetStores, seed, withSecondSection, YEAR } from './helpers';
 
 beforeEach(resetStores);
 
@@ -121,16 +121,16 @@ describe('estimat och utfall', () => {
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 1, 50);
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 0, 10);
     d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 90);
-    d = ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+    d = withSecondSection(d);
     d = ops.addInitiative(d, {
       id: 'lager',
       name: 'Lager',
       productOwnerId: 'stina',
-      personIds: ['anna'],
+      personIds: ['sara'],
       years: [YEAR],
     });
-    d = ops.setEstimate(d, 'lager', 'anna', YEAR, 0, 30);
-    d = ops.setActual(d, 'lager', 'anna', YEAR, 0, 25);
+    d = ops.setEstimate(d, 'lager', 'sara', YEAR, 0, 30);
+    d = ops.setActual(d, 'lager', 'sara', YEAR, 0, 25);
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
     renderApp();
@@ -161,15 +161,15 @@ describe('estimat och utfall', () => {
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 0, 20); // estimat 20 000
     d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 90); // 90 × 650 = 58 500
     d = ops.setActual(d, 'portal', 'kalle', YEAR, 0, 12); // 12 × 1 000 = 12 000
-    d = ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+    d = withSecondSection(d);
     d = ops.addInitiative(d, {
       id: 'lager',
       name: 'Lager',
       productOwnerId: 'stina',
-      personIds: ['anna'],
+      personIds: ['sara'],
       years: [YEAR],
     });
-    d = ops.setActual(d, 'lager', 'anna', YEAR, 0, 10); // 6 500
+    d = ops.setActual(d, 'lager', 'sara', YEAR, 0, 10); // 6 500
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
     renderApp();
@@ -179,7 +179,12 @@ describe('estimat och utfall', () => {
     const statValue = (label: string) =>
       screen.getByText(label, { selector: '.stat .label' }).nextElementSibling!.textContent;
     // Utfallskostnaden ligger direkt till höger om prognos kostnad (sist i raden).
-    expect(statLabels().slice(-3)).toEqual([`Prognos kostnad ${YEAR}`, `Utfallskostnad ${YEAR}`, 'Budget']);
+    expect(statLabels().slice(-4)).toEqual([
+      `Prognos kostnad ${YEAR}`,
+      `Utfallskostnad ${YEAR}`,
+      'Intern budget',
+      'Extern budget',
+    ]);
     expect(statValue(`Prognos kostnad ${YEAR}`)).toBe('85 000 kr');
     expect(statValue(`Utfallskostnad ${YEAR}`)).toBe('77 000 kr'); // 58 500 + 12 000 + 6 500
 
@@ -225,7 +230,7 @@ describe('estimat och utfall', () => {
 
   it('utfallet i budgetrutan är grönt t.o.m. 100 % och rött från 101 %, både siffra och stapel', async () => {
     // Kalle kostar 1 000 kr/h och budgeten är 250 000 kr, så 1 h = 0,4 %. Prognosen ligger på 200 %.
-    let d = ops.updateInitiative(seed(), 'portal', { budget: 250_000 });
+    let d = ops.updateInitiative(seed(), 'portal', { internalBudget: 250_000 });
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 0, 500);
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
@@ -268,7 +273,7 @@ describe('estimat och utfall', () => {
   });
 
   it('budgeten visar utfall och prognos i utfallsvyn', async () => {
-    let d = ops.updateInitiative(seed(), 'portal', { budget: 100_000 });
+    let d = ops.updateInitiative(seed(), 'portal', { internalBudget: 100_000 });
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100); // 65 000
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 1, 40); // 26 000
     d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 60); // 39 000
@@ -283,7 +288,7 @@ describe('estimat och utfall', () => {
   });
 
   it('prognosen ändras inte när utfall matas in, rättas eller tas bort – men utfallet gör det', async () => {
-    let d = ops.updateInitiative(seed(), 'portal', { budget: 100_000 });
+    let d = ops.updateInitiative(seed(), 'portal', { internalBudget: 100_000 });
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 100); // 65 000
     d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 1, 10); // 10 000
     useDataStore.setState({ data: d });

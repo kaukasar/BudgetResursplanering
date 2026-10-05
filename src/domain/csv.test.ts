@@ -21,7 +21,7 @@ function fixture(): AppData {
     id: 'kalle',
     name: 'Kalle; "K"',
     type: 'consultant',
-    sectionId: 's2',
+    sectionId: 's1',
     hourlyRate: 1000,
     monthlyHours: 100,
   });
@@ -45,6 +45,8 @@ function fixture(): AppData {
   d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 10);
   d = ops.setActual(d, 'i1', 'anna', 2026, 2, 90);
   d = ops.setActual(d, 'i1', 'kalle', 2026, 0, 0); // rapporterat 0 h
+  // Kalle byter sedan sektion: hans tid på Portal finns kvar men är låst, och hemsektionen blir Sektion 2.
+  d = ops.updatePerson(d, 'kalle', { sectionId: 's2' });
   return d;
 }
 

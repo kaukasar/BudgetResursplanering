@@ -4,6 +4,7 @@ import {
   isExternal,
   type AppData,
   type Initiative,
+  type LockReason,
   type Measure,
   type MonthActuals,
   type MonthHours,
@@ -69,6 +70,8 @@ export function getMonthValues(
 
 export interface InitiativeRow {
   person: Worker;
+  /** `null` = tiden kan ändras. */
+  lockReason: LockReason | null;
   rate: number;
   months: MonthHours;
   totalHours: number;
@@ -93,7 +96,14 @@ export function summarizeInitiative(
     const months = getMonthValues(data, initiative.id, person.id, year, measure);
     const rate = effectiveRate(person, data.settings);
     const totalHours = sumHours(months);
-    return { person, rate, months, totalHours, totalCost: totalHours * rate };
+    return {
+      person,
+      lockReason: lockReason(data, initiative, person),
+      rate,
+      months,
+      totalHours,
+      totalCost: totalHours * rate,
+    };
   });
   return {
     rows,
@@ -118,6 +128,27 @@ export const regularPersonIds = (personIds: readonly string[]) => personIds.filt
 /** Ett initiativs sektion är dess produktägares sektion. */
 export function initiativeSectionId(data: AppData, initiative: Initiative): string | undefined {
   return data.productOwners.find((owner) => owner.id === initiative.productOwnerId)?.sectionId;
+}
+
+/** Personal som inte är raderad. */
+export const activePeople = (data: AppData): Person[] => data.people.filter((person) => !person.deleted);
+
+/**
+ * Varför tiden på initiativet är låst för personen, eller `null` om den kan ändras. Personal kan
+ * bara arbeta på initiativ i sin egen sektion; den som har bytt sektion eller raderats behåller sin
+ * tid, men den går inte att ändra. Extern personal tillhör ingen sektion och låses aldrig.
+ */
+export function lockReason(data: AppData, initiative: Initiative, worker: Worker): LockReason | null {
+  if (isExternal(worker)) return null;
+  if (worker.deleted) return 'deleted';
+  return worker.sectionId === initiativeSectionId(data, initiative) ? null : 'moved';
+}
+
+/** Personer kopplade till initiativet vars tid är låst. */
+export function lockedPersonIds(data: AppData, initiative: Initiative): string[] {
+  return linkedPeople(data, initiative)
+    .filter((worker) => lockReason(data, initiative, worker) !== null)
+    .map((worker) => worker.id);
 }
 
 export interface InitiativeFilter {

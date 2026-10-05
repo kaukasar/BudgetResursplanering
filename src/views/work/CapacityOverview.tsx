@@ -59,6 +59,7 @@ export function CapacityOverview({ data, people, year, measure }: Props) {
                 <PersonCell
                   person={person}
                   details={`${PERSON_TYPE_LABEL[person.type]} · ${formatHours(capacity)} h/mån`}
+                  lockReason={null}
                   overallocated={overallocated}
                 />
                 {monthTotals.map((total, month) => (

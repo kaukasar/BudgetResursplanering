@@ -30,7 +30,23 @@ export interface Person {
   hourlyRate: number | null;
   /** Egen arbetstid per månad. `null` = ärv från typens globala inställning. */
   monthlyHours: number | null;
+  /**
+   * `true` = personen är raderad. Personen finns kvar så att den tid som redan registrerats kan
+   * visas och räknas, men tiden är låst och personen kan inte väljas igen.
+   */
+  deleted?: boolean;
 }
+
+/**
+ * Varför en persons tid på ett initiativ är låst: personen har bytt till en annan sektion än
+ * initiativets, eller är raderad. Låst tid räknas med överallt men kan inte ändras.
+ */
+export type LockReason = 'moved' | 'deleted';
+
+export const LOCK_REASON_LABEL: Record<LockReason, string> = {
+  moved: 'bytt sektion',
+  deleted: 'raderad',
+};
 
 /**
  * Extern personal: en inbyggd post för den samlade tiden från personal utanför de ordinarie teamen.
@@ -59,6 +75,28 @@ export interface ProductOwner {
   sectionId: string;
 }
 
+/**
+ * Ett initiativs budget har två delar: intern budget för tid från personal i sektionen (även låst
+ * tid) och extern budget för tid från Extern personal. Båda är frivilliga och oberoende.
+ */
+export type BudgetPart = 'internal' | 'external';
+
+export const BUDGET_PARTS: readonly BudgetPart[] = ['internal', 'external'];
+
+export const BUDGET_PART_LABEL: Record<BudgetPart, string> = {
+  internal: 'Intern budget',
+  external: 'Extern budget',
+};
+
+/** Bestämd form, för meningar: "den interna budgeten". */
+export const BUDGET_PART_DEFINITE: Record<BudgetPart, string> = {
+  internal: 'den interna budgeten',
+  external: 'den externa budgeten',
+};
+
+export const budgetOf = (initiative: Initiative, part: BudgetPart): number | null =>
+  (part === 'internal' ? initiative.internalBudget : initiative.externalBudget) ?? null;
+
 export const TAJMA_CLASSES = ['IMM', 'Vidareutveckling', 'Drift'] as const;
 export type TajmaClass = (typeof TAJMA_CLASSES)[number];
 
@@ -69,8 +107,10 @@ export interface Initiative {
   personIds: string[];
   /** Kalenderår som initiativet är relevant för, sorterade stigande. */
   years: number[];
-  /** Frivillig totalbudget i SEK för initiativets alla år. */
-  budget?: number | null;
+  /** Frivillig budget i SEK för initiativets alla år, för tid från personal i sektionen. */
+  internalBudget?: number | null;
+  /** Frivillig budget i SEK för initiativets alla år, för tid från Extern personal. */
+  externalBudget?: number | null;
   tajmaClass?: TajmaClass | null;
 }
 

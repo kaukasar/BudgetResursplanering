@@ -1,4 +1,4 @@
-import { DomainError } from './operations';
+import { DomainError, pruneEmptyLockedLinks } from './operations';
 import {
   EXTERNAL_STAFF_ID,
   TAJMA_CLASSES,
@@ -94,6 +94,8 @@ function parsePerson(value: unknown): Person {
     sectionId: typeof value.sectionId === 'string' ? value.sectionId : UNASSIGNED_SECTION,
     hourlyRate: optionalNonNegative(value.hourlyRate, 'Timkostnad för en person'),
     monthlyHours: optionalNonNegative(value.monthlyHours, 'Arbetstid för en person'),
+    // Saknas i äldre data och för aktiv personal.
+    ...(value.deleted === true ? { deleted: true } : {}),
   };
 }
 
@@ -107,11 +109,11 @@ function parseOwner(value: unknown): ProductOwner {
 }
 
 /** Saknas i data från äldre versioner och tolkas då som "ingen budget". */
-function parseBudget(value: unknown, initiativeName: string): number | null {
+function parseBudget(value: unknown, initiativeName: string, what: string): number | null {
   if (isMissing(value)) return null;
   // En budget under 0,5 kr blir 0 vid avrundning och är då inte längre en giltig budget.
   if (!isNonNegativeNumber(value) || toWholeNumber(value) === 0) {
-    fail(`initiativet "${initiativeName}" har en ogiltig budget.`);
+    fail(`initiativet "${initiativeName}" har en ogiltig ${what}.`);
   }
   return toWholeNumber(value);
 }
@@ -137,7 +139,9 @@ function parseInitiative(value: unknown): Initiative {
     productOwnerId: requireString(value.productOwnerId, 'Initiativets produktägare'),
     personIds: requireArray(value.personIds, 'Initiativets personal').map((id) => requireString(id, 'Person-id')),
     years: [...new Set(years)].sort((a, b) => a - b),
-    budget: parseBudget(value.budget, name),
+    // Äldre versioner hade en enda budget, `budget`, som nu blir den interna budgeten.
+    internalBudget: parseBudget(value.internalBudget ?? value.budget, name, 'intern budget'),
+    externalBudget: parseBudget(value.externalBudget, name, 'extern budget'),
     tajmaClass: parseTajmaClass(value.tajmaClass, name),
   };
 }
@@ -234,7 +238,9 @@ export function parseAppData(input: unknown): AppData {
       return { ...initiative, personIds: [...new Set(initiative.personIds)].filter((id) => personIds.has(id)) };
     });
 
-  return {
+  // Äldre data kan ha personal kopplad till initiativ i andra sektioner. Den tiden blir låst;
+  // kopplingar helt utan timmar tas bort.
+  return pruneEmptyLockedLinks({
     settings,
     sections: withOwners.sections,
     people,
@@ -243,5 +249,5 @@ export function parseAppData(input: unknown): AppData {
     // Estimaten hette `hours` i äldre versioner. Utfall saknas i äldre data (= inget rapporterat).
     estimates: parseTimeMap(raw.estimates ?? raw.hours, initiatives, 'timmar', isNonNegativeNumber),
     actuals: parseTimeMap(raw.actuals, initiatives, 'utfall', isActualValue),
-  };
+  });
 }

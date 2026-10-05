@@ -2,14 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
 import { Modal } from '../../components/Modal';
 import {
+  activePeople,
   externalHourlyRate,
   hoursLostByUpdate,
-  regularPersonIds,
   storedHoursForPersonInInitiative,
   type HoursLoss,
 } from '../../domain/calc';
 import { formatInputNumber, formatSek, hoursPairText, parseOptionalWholeNumber } from '../../domain/format';
-import { compareByName, compareValues, sortByName } from '../../domain/sorting';
+import { sortByName } from '../../domain/sorting';
 import {
   EXTERNAL_STAFF,
   EXTERNAL_STAFF_LABEL,
@@ -17,7 +17,6 @@ import {
   TAJMA_CLASSES,
   type AppData,
   type Initiative,
-  type Person,
   type TajmaClass,
 } from '../../domain/types';
 import { useDataStore } from '../../store/store';
@@ -50,11 +49,6 @@ function yearChoices(currentYear: number, ...selectedYears: number[][]): number[
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
-/** Personal i de visade sektionerna, plus personer som alltid ska visas oavsett filter. */
-function visiblePeople(people: Person[], shownSectionIds: string[], alwaysVisibleIds: string[]): Person[] {
-  return people.filter((person) => shownSectionIds.includes(person.sectionId) || alwaysVisibleIds.includes(person.id));
-}
-
 export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
   const data = useDataStore((state) => state.data);
   const addInitiative = useDataStore((state) => state.addInitiative);
@@ -64,28 +58,30 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
   const currentYear = new Date().getFullYear();
 
   const sectionOfOwner = (id: string) => data.productOwners.find((owner) => owner.id === id)?.sectionId;
-  // Standard: personal i produktägarens sektion. Utan vald produktägare visas alla sektioner.
-  const defaultShownSections = (id: string) => {
-    const sectionId = sectionOfOwner(id);
-    return sectionId ? [sectionId] : data.sections.map((section) => section.id);
-  };
+  /** Personal som kan kopplas: aktiv personal i sektionen. */
+  const selectablePeople = (sectionId: string | undefined) =>
+    sortByName(activePeople(data).filter((person) => person.sectionId === sectionId));
 
   const [name, setName] = useState(initiative?.name ?? '');
   const [ownerId, setOwnerId] = useState(initiative?.productOwnerId ?? defaultOwnerId ?? '');
-  const [shownSectionIds, setShownSectionIds] = useState<string[]>(() => defaultShownSections(ownerId));
   const [years, setYears] = useState<number[]>(initiative?.years ?? [currentYear]);
+  // Personer med låst tid (bytt sektion eller raderade) visas inte i listan men finns kvar i
+  // initiativet, eftersom låst tid inte kan ändras.
   const [personIds, setPersonIds] = useState<string[]>(initiative?.personIds ?? []);
-  // Kopplad personal visas alltid, även från bortfiltrerade sektioner. Den som avmarkeras ligger kvar
-  // i listan tills formuläret stängs, så att det går att ångra.
-  const [pinnedPersonIds, setPinnedPersonIds] = useState<string[]>(initiative?.personIds ?? []);
   const [extraYear, setExtraYear] = useState('');
-  const [budget, setBudget] = useState(formatInputNumber(initiative?.budget ?? null));
+  const [internalBudget, setInternalBudget] = useState(formatInputNumber(initiative?.internalBudget ?? null));
+  const [externalBudget, setExternalBudget] = useState(formatInputNumber(initiative?.externalBudget ?? null));
   // Tom sträng = ingen tajmaklass (standard för nya initiativ).
   const [tajmaClass, setTajmaClass] = useState<TajmaClass | ''>(initiative?.tajmaClass ?? '');
   const [error, setError] = useState<string | null>(null);
 
-  const parsedBudget = parseOptionalWholeNumber(budget);
-  const budgetInvalid = !parsedBudget.ok || parsedBudget.value === 0;
+  // Intern och extern budget är frivilliga och oberoende; en angiven budget är ett heltal över 0.
+  const parseBudget = (text: string) => {
+    const parsed = parseOptionalWholeNumber(text);
+    return { value: parsed.ok ? parsed.value : null, invalid: !parsed.ok || parsed.value === 0 };
+  };
+  const parsedInternal = parseBudget(internalBudget);
+  const parsedExternal = parseBudget(externalBudget);
 
   // Initiativets sektion följer produktägaren. Ett befintligt initiativ kan bara byta till en
   // produktägare i samma sektion; nya initiativ kan välja produktägare i alla sektioner.
@@ -99,25 +95,12 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
       owners: sortByName(data.productOwners.filter((owner) => owner.sectionId === section.id)),
     }))
     .filter((group) => group.owners.length > 0);
+  // Personal kan bara kopplas från produktägarens sektion och visas först när en produktägare är vald.
   const selectedSectionId = sectionOfOwner(ownerId);
-  // Personal i initiativets sektion först, därefter personal som lånas in från andra sektioner.
-  const isBorrowed = (sectionId: string) => Boolean(selectedSectionId) && sectionId !== selectedSectionId;
-  const people = visiblePeople(data.people, shownSectionIds, pinnedPersonIds).sort(
-    (a, b) => compareValues(Number(isBorrowed(a.sectionId)), Number(isBorrowed(b.sectionId))) || compareByName(a, b),
-  );
+  const people = selectablePeople(selectedSectionId);
+  const selectedCount = people.filter((person) => personIds.includes(person.id)).length;
 
-  // Sektionsfiltret visar sektioner som har personal, plus initiativets egen sektion.
-  const filterSections = sortByName(data.sections).filter(
-    (section) => section.id === selectedSectionId || data.people.some((person) => person.sectionId === section.id),
-  );
-  const isShown = (sectionId: string) => shownSectionIds.includes(sectionId);
-  const shownFilterCount = filterSections.filter((section) => isShown(section.id)).length;
-  const allSectionsShown = shownFilterCount === filterSections.length;
-
-  const togglePerson = (personId: string) => {
-    setPersonIds((current) => toggle(current, personId));
-    setPinnedPersonIds((current) => (current.includes(personId) ? current : [...current, personId]));
-  };
+  const togglePerson = (personId: string) => setPersonIds((current) => toggle(current, personId));
 
   /** "40 h estimat, 12 h utfall" som redan finns sparat för personen i initiativet. */
   const storedHoursText = (personId: string) =>
@@ -128,9 +111,15 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
         )
       : '';
 
+  // Ett nytt initiativ kan byta produktägare till en annan sektion; vald personal från den tidigare
+  // sektionen kan då inte längre kopplas och avmarkeras.
   const changeOwner = (id: string) => {
+    const newSectionId = sectionOfOwner(id);
+    if (newSectionId !== selectedSectionId) {
+      const allowed = new Set([EXTERNAL_STAFF.id, ...selectablePeople(newSectionId).map((person) => person.id)]);
+      setPersonIds((current) => current.filter((personId) => allowed.has(personId)));
+    }
     setOwnerId(id);
-    setShownSectionIds(defaultShownSections(id));
   };
 
   const addExtraYear = () => {
@@ -146,8 +135,9 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
     if (!ownerId) return 'Välj en produktägare.';
     if (years.length === 0) return 'Välj minst ett år.';
     // Extern personal räknas inte som en person i kravet på minst en kopplad person.
-    if (isNew && regularPersonIds(personIds).length === 0) return 'Koppla minst en person till initiativet.';
-    if (budgetInvalid) return 'Budget måste vara ett heltal större än 0, eller lämnas tom.';
+    if (isNew && selectedCount === 0) return 'Koppla minst en person till initiativet.';
+    if (parsedInternal.invalid) return 'Intern budget måste vara ett heltal större än 0, eller lämnas tom.';
+    if (parsedExternal.invalid) return 'Extern budget måste vara ett heltal större än 0, eller lämnas tom.';
     return null;
   };
 
@@ -183,7 +173,8 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
       productOwnerId: ownerId,
       personIds,
       years,
-      budget: parsedBudget.ok ? parsedBudget.value : null,
+      internalBudget: parsedInternal.value,
+      externalBudget: parsedExternal.value,
       tajmaClass: tajmaClass || null,
     };
     try {
@@ -250,15 +241,33 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
 
         <div className="form-row">
           <label className="field">
-            <span>Budget (kr, frivillig)</span>
+            <span>Intern budget (kr, frivillig)</span>
             <input
-              className={budgetInvalid ? 'input invalid' : 'input'}
+              className={parsedInternal.invalid ? 'input invalid' : 'input'}
               inputMode="numeric"
               placeholder="Ingen budget"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
+              value={internalBudget}
+              onChange={(e) => setInternalBudget(e.target.value)}
             />
           </label>
+          <label className="field">
+            <span>Extern budget (kr, frivillig)</span>
+            <input
+              className={parsedExternal.invalid ? 'input invalid' : 'input'}
+              inputMode="numeric"
+              placeholder="Ingen budget"
+              value={externalBudget}
+              onChange={(e) => setExternalBudget(e.target.value)}
+            />
+          </label>
+        </div>
+        <p className="small muted form-note">
+          Budgetarna gäller initiativets alla år. Den interna budgeten avser tid för personal i sektionen och den
+          externa budgeten tid för Extern personal. I arbetsläget visas prognos och utfall som andel av respektive
+          budget.
+        </p>
+
+        <div className="form-row">
           <label className="field">
             <span>Tajmaklass</span>
             <select
@@ -275,10 +284,6 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
             </select>
           </label>
         </div>
-        <p className="small muted form-note">
-          Budgeten är en totalbudget för initiativets alla år. I arbetsläget visas prognos och utfall som andel av
-          budgeten. Budget och tajmaklass är frivilliga.
-        </p>
 
         <fieldset className="field plain">
           <legend>År</legend>
@@ -315,95 +320,69 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
           </div>
         </fieldset>
 
-        <fieldset className="field plain">
-          <legend>
-            Personal{' '}
-            <span className="muted small">
-              ({regularPersonIds(personIds).length} valda{isNew ? ', minst 1' : ''})
-            </span>
-          </legend>
-          {filterSections.length > 1 && (
-            <div className="chips section-filter" role="group" aria-label="Visa personal från sektion">
-              <span className="small muted">Visa personal från:</span>
-              {filterSections.map((section) => {
-                // Minst en sektion ska alltid visas, så den sista valda går inte att avmarkera.
-                const onlyShown = isShown(section.id) && shownFilterCount === 1;
-                return (
-                  <label key={section.id} className={isShown(section.id) ? 'chip checked' : 'chip'}>
-                    <input
-                      type="checkbox"
-                      checked={isShown(section.id)}
-                      disabled={onlyShown}
-                      title={onlyShown ? 'Minst en sektion måste visas' : undefined}
-                      onChange={() => setShownSectionIds((current) => toggle(current, section.id))}
-                    />
-                    {section.name}
-                  </label>
-                );
-              })}
-              <button
-                type="button"
-                className="btn btn-sm"
-                disabled={allSectionsShown}
-                onClick={() => setShownSectionIds(data.sections.map((section) => section.id))}
-              >
-                Alla sektioner
-              </button>
-            </div>
-          )}
-          {data.people.length === 0 ? (
-            <div className="notice">Det finns ingen personal. Lägg till personal först.</div>
-          ) : people.length === 0 ? (
-            <div className="notice">Det finns ingen personal i de valda sektionerna.</div>
-          ) : (
-            <div className="check-list">
-              {people.map((person) => {
-                const storedHours = storedHoursText(person.id);
-                return (
-                  <label key={person.id}>
-                    <input
-                      type="checkbox"
-                      checked={personIds.includes(person.id)}
-                      onChange={() => togglePerson(person.id)}
-                    />
-                    <span>{person.name}</span>
-                    <span className={`tag ${person.type}`}>{PERSON_TYPE_LABEL[person.type]}</span>
-                    {isBorrowed(person.sectionId) && (
-                      <span className="small muted">lånas från {sectionName(data, person.sectionId)}</span>
-                    )}
-                    <span className="spacer" />
-                    {storedHours && <span className="small muted">{storedHours}</span>}
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
-
-        <fieldset className="field plain">
-          <legend>Extern personal</legend>
-          {/* Påverkas inte av sektionsfiltret: Extern personal tillhör ingen sektion. */}
-          <div className="check-list">
-            <label>
-              <input
-                type="checkbox"
-                checked={personIds.includes(EXTERNAL_STAFF.id)}
-                onChange={() => togglePerson(EXTERNAL_STAFF.id)}
-              />
-              <span>{EXTERNAL_STAFF.name}</span>
-              <span className="tag external">{EXTERNAL_STAFF_LABEL}</span>
-              <span className="small muted">schablon {formatSek(externalHourlyRate(data.settings))}/h</span>
-              <span className="spacer" />
-              {storedHoursText(EXTERNAL_STAFF.id) && (
-                <span className="small muted">{storedHoursText(EXTERNAL_STAFF.id)}</span>
+        {selectedSectionId ? (
+          <>
+            <fieldset className="field plain">
+              <legend>
+                Personal i {sectionName(data, selectedSectionId)}{' '}
+                <span className="muted small">
+                  ({selectedCount} valda{isNew ? ', minst 1' : ''})
+                </span>
+              </legend>
+              {people.length === 0 ? (
+                <div className="notice">
+                  Det finns ingen personal i {sectionName(data, selectedSectionId)}. Lägg till personal under fliken
+                  Personal.
+                </div>
+              ) : (
+                <div className="check-list">
+                  {people.map((person) => {
+                    const storedHours = storedHoursText(person.id);
+                    return (
+                      <label key={person.id}>
+                        <input
+                          type="checkbox"
+                          checked={personIds.includes(person.id)}
+                          onChange={() => togglePerson(person.id)}
+                        />
+                        <span>{person.name}</span>
+                        <span className={`tag ${person.type}`}>{PERSON_TYPE_LABEL[person.type]}</span>
+                        <span className="spacer" />
+                        {storedHours && <span className="small muted">{storedHours}</span>}
+                      </label>
+                    );
+                  })}
+                </div>
               )}
-            </label>
-          </div>
-          <p className="small muted form-note">
-            Samlad tid från personal utanför de ordinarie teamen. Timkostnaden är medelvärdet av standardtimkostnaden
-            för anställd och konsult, och arbetstiden har inget tak.
-          </p>
-        </fieldset>
+            </fieldset>
+
+            <fieldset className="field plain">
+              <legend>Extern personal</legend>
+              <div className="check-list">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={personIds.includes(EXTERNAL_STAFF.id)}
+                    onChange={() => togglePerson(EXTERNAL_STAFF.id)}
+                  />
+                  <span>{EXTERNAL_STAFF.name}</span>
+                  <span className="tag external">{EXTERNAL_STAFF_LABEL}</span>
+                  <span className="small muted">schablon {formatSek(externalHourlyRate(data.settings))}/h</span>
+                  <span className="spacer" />
+                  {storedHoursText(EXTERNAL_STAFF.id) && (
+                    <span className="small muted">{storedHoursText(EXTERNAL_STAFF.id)}</span>
+                  )}
+                </label>
+              </div>
+              <p className="small muted form-note">
+                Samlad tid från personal utanför sektionen och de ordinarie teamen. Timkostnaden är medelvärdet av
+                standardtimkostnaden för anställd och konsult, och arbetstiden har inget tak.
+              </p>
+            </fieldset>
+          </>
+        ) : (
+          <div className="notice">Välj en produktägare för att se personalen i produktägarens sektion.</div>
+        )}
 
         {error && (
           <div className="notice error" role="alert">

@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { activePeople } from '../../domain/calc';
 import { useCanEdit, useEditLockStore } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { useUiStore, type AdminTab } from '../../store/ui';
@@ -26,7 +27,7 @@ export function AdminView() {
 
   const tabs: { id: AdminTab; label: string }[] = [
     { id: 'sections', label: `Sektioner (${data.sections.length})` },
-    { id: 'people', label: `Personal (${data.people.length})` },
+    { id: 'people', label: `Personal (${activePeople(data).length})` },
     { id: 'owners', label: `Produktägare (${data.productOwners.length})` },
     { id: 'initiatives', label: `Initiativ (${data.initiatives.length})` },
     { id: 'settings', label: 'Inställningar' },

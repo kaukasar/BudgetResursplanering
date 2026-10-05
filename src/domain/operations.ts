@@ -1,6 +1,17 @@
-import { emptyActuals, getMonthActuals, getMonthEstimates, regularPersonIds, zeroMonths } from './calc';
+import {
+  emptyActuals,
+  getMonthActuals,
+  getMonthEstimates,
+  linkedPeople,
+  lockedPersonIds,
+  lockReason,
+  regularPersonIds,
+  storedHoursForPersonInInitiative,
+  zeroMonths,
+} from './calc';
 import {
   EXTERNAL_STAFF_ID,
+  LOCK_REASON_LABEL,
   TAJMA_CLASSES,
   type AppData,
   type Initiative,
@@ -67,10 +78,28 @@ function knownPersonIds(data: AppData, personIds: string[]): string[] {
   return [...new Set(personIds)].filter((id) => known.has(id));
 }
 
-/** Budget är frivillig; anges den måste den vara ett heltal större än 0. */
-function normalizeBudget(budget: number | null | undefined): number | null {
+const ownerSectionId = (data: AppData, ownerId: string) =>
+  data.productOwners.find((owner) => owner.id === ownerId)?.sectionId;
+
+/**
+ * Personal kan bara kopplas till initiativ i sin egen sektion, och raderad personal kan inte kopplas
+ * alls. Personal från andra delar av organisationen registreras som Extern personal.
+ */
+function requireLinkable(data: AppData, sectionId: string | undefined, personIds: string[]): void {
+  for (const person of data.people.filter((candidate) => personIds.includes(candidate.id))) {
+    if (person.deleted) throw new DomainError(`${person.name} är raderad och kan inte kopplas till initiativ.`);
+    if (person.sectionId !== sectionId) {
+      throw new DomainError(
+        `${person.name} tillhör en annan sektion. Endast personal i initiativets sektion kan kopplas.`,
+      );
+    }
+  }
+}
+
+/** Intern och extern budget är frivilliga; anges en budget måste den vara ett heltal större än 0. */
+function normalizeBudget(budget: number | null | undefined, label: string): number | null {
   if (budget === null || budget === undefined) return null;
-  if (!Number.isInteger(budget) || budget <= 0) throw new DomainError('Budget måste vara ett heltal större än 0.');
+  if (!Number.isInteger(budget) || budget <= 0) throw new DomainError(`${label} måste vara ett heltal större än 0.`);
   return budget;
 }
 
@@ -82,15 +111,6 @@ function normalizeTajmaClass(value: TajmaClass | null | undefined): TajmaClass |
 }
 
 // ---------------------------------------------------------------- Tidskartor (estimat och utfall)
-
-function withoutPerson<T>(map: TimeMap<T>, personId: string): TimeMap<T> {
-  return Object.fromEntries(
-    Object.entries(map).map(([initiativeId, byPerson]) => {
-      const { [personId]: _removed, ...rest } = byPerson;
-      return [initiativeId, rest];
-    }),
-  );
-}
 
 function withoutInitiative<T>(map: TimeMap<T>, initiativeId: string): TimeMap<T> {
   const { [initiativeId]: _removed, ...rest } = map;
@@ -124,13 +144,43 @@ function withMonthValue<T>(map: TimeMap<T>, slot: TimeSlot, value: T, emptyMonth
   return { ...map, [slot.initiativeId]: { ...byPerson, [slot.personId]: { ...byYear, [slot.year]: months } } };
 }
 
-/** Tid kan bara registreras för personer som är kopplade till initiativet, och för initiativets år. */
+/**
+ * Tid kan bara registreras för personer som är kopplade till initiativet, och för initiativets år.
+ * Låst tid (personen har bytt sektion eller är raderad) kan inte ändras.
+ */
 function requireTimeSlot(data: AppData, slot: TimeSlot): void {
   const initiative = requireInitiative(data, slot.initiativeId);
-  if (!initiative.personIds.includes(slot.personId))
-    throw new DomainError('Personen är inte kopplad till initiativet.');
+  const worker = linkedPeople(data, initiative).find((candidate) => candidate.id === slot.personId);
+  if (!worker) throw new DomainError('Personen är inte kopplad till initiativet.');
+  const reason = lockReason(data, initiative, worker);
+  if (reason) throw new DomainError(`Tiden för ${worker.name} är låst (${LOCK_REASON_LABEL[reason]}).`);
   if (!initiative.years.includes(slot.year)) throw new DomainError(`Initiativet gäller inte ${slot.year}.`);
   if (!Number.isInteger(slot.month) || slot.month < 0 || slot.month > 11) throw new DomainError('Ogiltig månad.');
+}
+
+/**
+ * Låsta kopplingar utan några timmar bevarar ingen tid och tas bort, t.ex. när en person byter
+ * sektion eller raderas innan någon tid har registrerats.
+ */
+export function pruneEmptyLockedLinks(data: AppData): AppData {
+  const hasHours = (initiativeId: string, personId: string) =>
+    storedHoursForPersonInInitiative(data, initiativeId, personId, 'estimate') > 0 ||
+    storedHoursForPersonInInitiative(data, initiativeId, personId, 'actual') > 0;
+
+  let changed = false;
+  const initiatives = data.initiatives.map((initiative) => {
+    const empty = lockedPersonIds(data, initiative).filter((personId) => !hasHours(initiative.id, personId));
+    if (empty.length === 0) return initiative;
+    changed = true;
+    return { ...initiative, personIds: initiative.personIds.filter((personId) => !empty.includes(personId)) };
+  });
+  if (!changed) return data;
+  return {
+    ...data,
+    initiatives,
+    estimates: initiatives.reduce((map, initiative) => keepInitiativePeopleAndYears(map, initiative), data.estimates),
+    actuals: initiatives.reduce((map, initiative) => keepInitiativePeopleAndYears(map, initiative), data.actuals),
+  };
 }
 
 // ---------------------------------------------------------------- Inställningar
@@ -157,7 +207,10 @@ export function renameSection(data: AppData, id: string, name: string): AppData 
 }
 
 export interface SectionContents {
+  /** Aktiv personal. */
   people: Person[];
+  /** Raderad personal som fortfarande hör till sektionen, för den låsta tidens skull. */
+  deletedPeople: Person[];
   productOwners: ProductOwner[];
   /** Initiativ följer sina produktägare och räknas här bara för information. */
   initiatives: Initiative[];
@@ -166,18 +219,43 @@ export interface SectionContents {
 export function sectionContents(data: AppData, sectionId: string): SectionContents {
   const productOwners = data.productOwners.filter((owner) => owner.sectionId === sectionId);
   const ownerIds = new Set(productOwners.map((owner) => owner.id));
+  const people = data.people.filter((person) => person.sectionId === sectionId);
   return {
-    people: data.people.filter((person) => person.sectionId === sectionId),
+    people: people.filter((person) => !person.deleted),
+    deletedPeople: people.filter((person) => person.deleted),
     productOwners,
     initiatives: data.initiatives.filter((initiative) => ownerIds.has(initiative.productOwnerId)),
   };
 }
 
-/** En sektion får bara raderas när den saknar personal och produktägare (och därmed initiativ). */
+export const isSectionEmpty = (contents: SectionContents) =>
+  contents.people.length + contents.deletedPeople.length + contents.productOwners.length === 0;
+
+/**
+ * Flyttar allt innehåll i en sektion till en annan: personal (även raderad), produktägare och
+ * därmed deras initiativ. Allt flyttas tillsammans, så att ingen personal låses på sina initiativ.
+ */
+export function moveSectionContents(data: AppData, fromSectionId: string, toSectionId: string): AppData {
+  requireSection(data, toSectionId);
+  if (fromSectionId === toSectionId) throw new DomainError('Välj en annan sektion att flytta till.');
+  return {
+    ...data,
+    people: data.people.map((person) =>
+      person.sectionId === fromSectionId ? { ...person, sectionId: toSectionId } : person,
+    ),
+    productOwners: data.productOwners.map((owner) =>
+      owner.sectionId === fromSectionId ? { ...owner, sectionId: toSectionId } : owner,
+    ),
+  };
+}
+
+/**
+ * En sektion får bara raderas när den är tom. Innehållet flyttas först till en annan sektion;
+ * en sektion med data kan aldrig raderas.
+ */
 export function deleteSection(data: AppData, id: string): AppData {
-  const { people, productOwners } = sectionContents(data, id);
-  if (people.length > 0 || productOwners.length > 0) {
-    throw new DomainError('Sektionen innehåller personal eller produktägare som först måste flyttas eller raderas.');
+  if (!isSectionEmpty(sectionContents(data, id))) {
+    throw new DomainError('Sektionen har innehåll som först måste flyttas till en annan sektion.');
   }
   return { ...data, sections: data.sections.filter((section) => section.id !== id) };
 }
@@ -199,25 +277,39 @@ export function addPerson(data: AppData, person: Person): AppData {
   return { ...data, people: [...data.people, validatePerson(data, person)] };
 }
 
-export function updatePerson(data: AppData, id: string, patch: Partial<Omit<Person, 'id'>>): AppData {
-  return {
+export type PersonPatch = Partial<Omit<Person, 'id' | 'deleted'>>;
+
+/**
+ * Ändrar en person. Byter personen sektion låses tiden på den gamla sektionens initiativ: den
+ * finns kvar men kan inte ändras. Kopplingar utan timmar tas bort.
+ */
+export function updatePerson(data: AppData, id: string, patch: PersonPatch): AppData {
+  if (data.people.find((person) => person.id === id)?.deleted) {
+    throw new DomainError('Personen är raderad och kan inte ändras.');
+  }
+  return pruneEmptyLockedLinks({
     ...data,
     people: data.people.map((person) => (person.id === id ? validatePerson(data, { ...person, ...patch }) : person)),
-  };
+  });
 }
 
-/** Raderar personen, kopplingar till initiativ och alla personens timmar (estimat och utfall). */
+/**
+ * Raderar personen. Tiden som redan registrerats finns kvar och räknas med, men låses, och
+ * personen kan inte väljas igen. Kopplingar utan timmar tas bort.
+ */
 export function deletePerson(data: AppData, id: string): AppData {
-  return {
+  return pruneEmptyLockedLinks({
     ...data,
-    people: data.people.filter((person) => person.id !== id),
-    initiatives: data.initiatives.map((initiative) => ({
-      ...initiative,
-      personIds: initiative.personIds.filter((personId) => personId !== id),
-    })),
-    estimates: withoutPerson(data.estimates, id),
-    actuals: withoutPerson(data.actuals, id),
-  };
+    people: data.people.map((person) => (person.id === id ? { ...person, deleted: true } : person)),
+  });
+}
+
+/** Initiativ där personens tid låses om personen byter till `newSectionId`. */
+export function initiativesLockedBySectionChange(data: AppData, personId: string, newSectionId: string): Initiative[] {
+  return data.initiatives.filter(
+    (initiative) =>
+      initiative.personIds.includes(personId) && ownerSectionId(data, initiative.productOwnerId) !== newSectionId,
+  );
 }
 
 // ---------------------------------------------------------------- Produktägare
@@ -230,8 +322,18 @@ export function addProductOwner(data: AppData, owner: ProductOwner): AppData {
   return { ...data, productOwners: [...data.productOwners, validateOwner(data, owner)] };
 }
 
-/** Byter namn och/eller sektion. Byts sektion följer produktägarens initiativ med. */
+/**
+ * Byter namn och/eller sektion. Initiativ stannar i sin sektion med sin personal, så en produktägare
+ * med initiativ kan bara byta sektion när initiativen först har fått en ny produktägare.
+ */
 export function updateProductOwner(data: AppData, id: string, patch: Partial<Omit<ProductOwner, 'id'>>): AppData {
+  const current = data.productOwners.find((owner) => owner.id === id);
+  const linked = initiativesForOwner(data, id);
+  if (current && patch.sectionId && patch.sectionId !== current.sectionId && linked.length > 0) {
+    throw new DomainError(
+      `Produktägaren har ${linked.length} initiativ som först måste få en ny produktägare i sin nuvarande sektion.`,
+    );
+  }
   return {
     ...data,
     productOwners: data.productOwners.map((owner) =>
@@ -244,13 +346,11 @@ export function initiativesForOwner(data: AppData, ownerId: string): Initiative[
   return data.initiatives.filter((initiative) => initiative.productOwnerId === ownerId);
 }
 
-/** En produktägare får bara raderas om den saknar kopplade initiativ. */
+/** En produktägare får bara raderas när dess initiativ har fått en ny produktägare. */
 export function deleteProductOwner(data: AppData, id: string): AppData {
   const linked = initiativesForOwner(data, id);
   if (linked.length > 0) {
-    throw new DomainError(
-      `Produktägaren har ${linked.length} kopplade initiativ som först måste raderas eller flyttas.`,
-    );
+    throw new DomainError(`Produktägaren har ${linked.length} initiativ som först måste få en ny produktägare.`);
   }
   return { ...data, productOwners: data.productOwners.filter((owner) => owner.id !== id) };
 }
@@ -266,42 +366,52 @@ function requireSameSection(data: AppData, fromOwnerId: string, toOwnerId: strin
 }
 
 /**
- * Nytt initiativ: exakt en produktägare, minst en person och minst ett år. Extern personal räknas
- * inte som en person i det kravet.
+ * Nytt initiativ: exakt en produktägare, minst en person och minst ett år. Personalen måste tillhöra
+ * produktägarens sektion. Extern personal räknas inte som en person i kravet på minst en person.
  */
 export function addInitiative(data: AppData, initiative: Initiative): AppData {
+  const productOwnerId = requireOwner(data, initiative.productOwnerId);
   const personIds = knownPersonIds(data, initiative.personIds);
   if (regularPersonIds(personIds).length === 0) {
     throw new DomainError('Ett nytt initiativ måste ha minst en person kopplad.');
   }
+  requireLinkable(data, ownerSectionId(data, productOwnerId), personIds);
   const validated: Initiative = {
     ...initiative,
     name: requireName(initiative.name),
-    productOwnerId: requireOwner(data, initiative.productOwnerId),
+    productOwnerId,
     personIds,
     years: normalizeYears(initiative.years),
-    budget: normalizeBudget(initiative.budget),
+    internalBudget: normalizeBudget(initiative.internalBudget, 'Intern budget'),
+    externalBudget: normalizeBudget(initiative.externalBudget, 'Extern budget'),
     tajmaClass: normalizeTajmaClass(initiative.tajmaClass),
   };
   return { ...data, initiatives: [...data.initiatives, validated] };
 }
 
 /**
- * Uppdaterar ett initiativ. Timmar för personer eller år som tas bort raderas.
- * Till skillnad från nya initiativ får ett befintligt initiativ sakna personal.
+ * Uppdaterar ett initiativ. Timmar för personer eller år som tas bort raderas. Ny personal måste
+ * tillhöra initiativets sektion. Låst tid kan inte ändras, så personer med låst tid finns alltid
+ * kvar. Till skillnad från nya initiativ får ett befintligt initiativ sakna personal.
  */
 export function updateInitiative(data: AppData, id: string, patch: Partial<Omit<Initiative, 'id'>>): AppData {
   const current = requireInitiative(data, id);
   if (patch.productOwnerId) requireSameSection(data, current.productOwnerId, patch.productOwnerId);
   const merged = { ...current, ...patch };
+  const productOwnerId = requireOwner(data, merged.productOwnerId);
+  const requested = knownPersonIds(data, merged.personIds);
+  const added = requested.filter((personId) => !current.personIds.includes(personId));
+  requireLinkable(data, ownerSectionId(data, productOwnerId), added);
+  const locked = lockedPersonIds(data, current).filter((personId) => !requested.includes(personId));
   const next: Initiative = {
     ...merged,
     id,
     name: requireName(merged.name),
-    productOwnerId: requireOwner(data, merged.productOwnerId),
-    personIds: knownPersonIds(data, merged.personIds),
+    productOwnerId,
+    personIds: [...requested, ...locked],
     years: normalizeYears(merged.years),
-    budget: normalizeBudget(merged.budget),
+    internalBudget: normalizeBudget(merged.internalBudget, 'Intern budget'),
+    externalBudget: normalizeBudget(merged.externalBudget, 'Extern budget'),
     tajmaClass: normalizeTajmaClass(merged.tajmaClass),
   };
   return {

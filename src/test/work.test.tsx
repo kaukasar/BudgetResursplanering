@@ -1,10 +1,10 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as ops from '../domain/operations';
 import type { AppData } from '../domain/types';
 import { DATA_STORAGE_KEY, useDataStore } from '../store/store';
-import { cell, initiativeSection, renderApp, resetStores, seed, YEAR } from './helpers';
+import { cell, initiativeSection, renderApp, resetStores, seed, withSecondSection, YEAR } from './helpers';
 
 beforeEach(resetStores);
 
@@ -76,12 +76,13 @@ describe('arbetsläge', () => {
   });
 
   it('visar budget och förbrukad andel som uppdateras direkt vid inmatning', async () => {
-    useDataStore.setState({ data: ops.updateInitiative(seed(), 'portal', { budget: 100_000 }) });
+    useDataStore.setState({ data: ops.updateInitiative(seed(), 'portal', { internalBudget: 100_000 }) });
     const user = userEvent.setup();
     renderApp();
 
     const portal = initiativeSection('Portal');
-    expect(portal).toHaveTextContent('Budget totalt100 000 kr');
+    expect(portal).toHaveTextContent('Intern budget100 000 kr');
+    expect(portal).not.toHaveTextContent('Extern budget'); // ingen extern budget angiven
     expect(within(portal).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
     // Initiativ utan budget visar ingen budget.
     expect(initiativeSection('App')).not.toHaveTextContent('Budget');
@@ -96,12 +97,12 @@ describe('arbetsläge', () => {
 
   it('filtrerar på sektion, och produktägarlistan visar bara sektionens produktägare', async () => {
     let d = seed();
-    d = ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+    d = withSecondSection(d);
     d = ops.addInitiative(d, {
       id: 'lager',
       name: 'Lager',
       productOwnerId: 'stina',
-      personIds: ['anna'],
+      personIds: ['sara'],
       years: [YEAR],
     });
     useDataStore.setState({ data: d });
@@ -116,8 +117,8 @@ describe('arbetsläge', () => {
     const owners = within(screen.getByRole('combobox', { name: 'Produktägare' })).getAllByRole('option');
     expect(owners.map((o) => o.textContent)).toEqual(['Alla i Sektion 2', 'Stina']);
 
-    // Anna tillhör Sektion 1 men är utlånad till Lager.
-    expect(initiativeSection('Lager')).toHaveTextContent('från Sektion 1');
+    // Lager bemannas av personal i sin egen sektion.
+    expect(initiativeSection('Lager')).toHaveTextContent('Sara');
   });
 
   it('filtrerar på produktägare och år', async () => {
@@ -138,60 +139,69 @@ describe('arbetsläge', () => {
   });
 });
 
-describe('nyckeltalet budget', () => {
+describe('nyckeltalen intern och extern budget', () => {
   const statLabels = () => [...document.querySelectorAll('.stat .label')].map((l) => l.textContent);
-  const budgetFigure = () => [...document.querySelectorAll('.stat')].at(-1)!;
+  const internalFigure = () => [...document.querySelectorAll('.stat')].at(-2)!;
+  const externalFigure = () => [...document.querySelectorAll('.stat')].at(-1)!;
 
   it('visas längst till höger i alla vyer och summerar budgeten för de visade initiativen', async () => {
     let d = seed();
-    d = ops.updateInitiative(d, 'portal', { budget: 300_000 });
-    d = ops.updateInitiative(d, 'app', { budget: 200_000 });
+    d = ops.updateInitiative(d, 'portal', { internalBudget: 300_000, externalBudget: 40_000 });
+    d = ops.updateInitiative(d, 'app', { internalBudget: 200_000 });
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
     renderApp();
 
     for (const view of ['Estimat', 'Utfall', 'Jämförelse']) {
       await user.click(screen.getByRole('button', { name: view }));
-      expect(statLabels().at(-1)).toBe('Budget');
-      expect(budgetFigure()).toHaveTextContent('500 000 kr');
+      expect(statLabels().slice(-2)).toEqual(['Intern budget', 'Extern budget']);
+      expect(internalFigure()).toHaveTextContent('500 000 kr');
+      expect(externalFigure()).toHaveTextContent('40 000 kr');
     }
-    expect(budgetFigure()).toHaveAttribute(
+    expect(internalFigure()).toHaveAttribute(
       'title',
-      'Summan av budgeten för de visade initiativen. 2 av 2 initiativ har budget.',
+      'Summan av den interna budgeten för de visade initiativen. 2 av 2 initiativ har intern budget.',
+    );
+    expect(externalFigure()).toHaveAttribute(
+      'title',
+      'Summan av den externa budgeten för de visade initiativen. 1 av 2 initiativ har extern budget.',
     );
   });
 
   it('följer filtret, räknar inte initiativ utan budget och anger när budgeten gäller flera år', async () => {
     let d = seed();
-    d = ops.updateInitiative(d, 'portal', { budget: 300_000, years: [YEAR, YEAR + 1] });
-    d = ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+    d = ops.updateInitiative(d, 'portal', { internalBudget: 300_000, years: [YEAR, YEAR + 1] });
+    d = withSecondSection(d);
     d = ops.addInitiative(d, {
       id: 'lager',
       name: 'Lager',
       productOwnerId: 'stina',
-      personIds: ['anna'],
+      personIds: ['sara'],
       years: [YEAR],
     });
-    d = ops.updateInitiative(d, 'lager', { budget: 50_000 });
+    d = ops.updateInitiative(d, 'lager', { internalBudget: 50_000 });
     useDataStore.setState({ data: d });
     const user = userEvent.setup();
     renderApp();
 
-    expect(statLabels().at(-1)).toBe('Budget (alla år)'); // Portal gäller två år
-    expect(budgetFigure()).toHaveTextContent('350 000 kr'); // App saknar budget
-    expect(budgetFigure()).toHaveAttribute(
+    // Portal gäller två år och har intern budget; ingen har extern budget.
+    expect(statLabels().slice(-2)).toEqual(['Intern budget (alla år)', 'Extern budget']);
+    expect(internalFigure()).toHaveTextContent('350 000 kr'); // App saknar budget
+    expect(externalFigure()).toHaveTextContent('–');
+    expect(internalFigure()).toHaveAttribute(
       'title',
-      'Summan av budgeten för de visade initiativen. 2 av 3 initiativ har budget.',
+      'Summan av den interna budgeten för de visade initiativen. 2 av 3 initiativ har intern budget.',
     );
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Sektion' }), 'Sektion 2');
-    expect(statLabels().at(-1)).toBe('Budget');
-    expect(budgetFigure()).toHaveTextContent('50 000 kr');
+    expect(statLabels().slice(-2)).toEqual(['Intern budget', 'Extern budget']);
+    expect(internalFigure()).toHaveTextContent('50 000 kr');
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Sektion' }), 'Sektion 1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Produktägare' }), 'Petra');
-    d = ops.updateInitiative(useDataStore.getState().data, 'portal', { budget: null });
+    d = ops.updateInitiative(useDataStore.getState().data, 'portal', { internalBudget: null });
     useDataStore.setState({ data: d });
-    expect(await screen.findByText('–', { selector: '.stat .value' })).toBeInTheDocument(); // ingen budget alls
+    await waitFor(() => expect(internalFigure()).toHaveTextContent('–')); // ingen budget alls
+    expect(externalFigure()).toHaveTextContent('–');
   });
 });

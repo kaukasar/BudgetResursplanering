@@ -1,7 +1,17 @@
 import { KeyFigure } from '../../components/KeyFigure';
 import { countOverallocatedMonths, personCapacity, summarizeInitiative } from '../../domain/calc';
 import { formatHours, formatSek } from '../../domain/format';
-import type { AppData, Initiative, Measure, Person } from '../../domain/types';
+import {
+  BUDGET_PART_DEFINITE,
+  BUDGET_PART_LABEL,
+  BUDGET_PARTS,
+  budgetOf,
+  type AppData,
+  type BudgetPart,
+  type Initiative,
+  type Measure,
+  type Person,
+} from '../../domain/types';
 import type { WorkView } from '../../store/ui';
 import { MISSING } from '../labels';
 
@@ -39,7 +49,9 @@ export function WorkKeyFigures({ data, initiatives, people, year, view }: Props)
           overallocatedCount={overallocatedCount(view)}
         />
       )}
-      <BudgetFigure initiatives={initiatives} />
+      {BUDGET_PARTS.map((part) => (
+        <BudgetFigure key={part} part={part} initiatives={initiatives} />
+      ))}
     </div>
   );
 }
@@ -101,18 +113,21 @@ function CompareFigures({ year, totals }: CompareFiguresProps) {
 }
 
 /**
- * Summan av budgeten för de visade initiativen. Budgeten gäller initiativets alla år, till skillnad
- * från övriga nyckeltal som gäller valt år; det anges i etiketten när något initiativ gäller flera år.
+ * Summan av den interna eller externa budgeten för de visade initiativen. Budgeten gäller
+ * initiativets alla år, till skillnad från övriga nyckeltal som gäller valt år; det anges i
+ * etiketten när något initiativ med den delen av budgeten gäller flera år.
  */
-function BudgetFigure({ initiatives }: { initiatives: Initiative[] }) {
-  const budgets = initiatives.flatMap((initiative) => (initiative.budget ? [initiative.budget] : []));
-  const coversSeveralYears = initiatives.some((initiative) => initiative.budget && initiative.years.length > 1);
+function BudgetFigure({ part, initiatives }: { part: BudgetPart; initiatives: Initiative[] }) {
+  const withBudget = initiatives.filter((initiative) => budgetOf(initiative, part));
+  const total = withBudget.reduce((sum, initiative) => sum + budgetOf(initiative, part)!, 0);
+  const coversSeveralYears = withBudget.some((initiative) => initiative.years.length > 1);
+  const label = BUDGET_PART_LABEL[part];
   return (
     <KeyFigure
       className="card stat"
-      label={coversSeveralYears ? 'Budget (alla år)' : 'Budget'}
-      title={`Summan av budgeten för de visade initiativen. ${budgets.length} av ${initiatives.length} initiativ har budget.`}
-      value={budgets.length > 0 ? formatSek(budgets.reduce((total, budget) => total + budget, 0)) : MISSING}
+      label={coversSeveralYears ? `${label} (alla år)` : label}
+      title={`Summan av ${BUDGET_PART_DEFINITE[part]} för de visade initiativen. ${withBudget.length} av ${initiatives.length} initiativ har ${label.toLowerCase()}.`}
+      value={withBudget.length > 0 ? formatSek(total) : MISSING}
     />
   );
 }

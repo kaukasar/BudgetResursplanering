@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { initiativeSectionId } from '../../domain/calc';
+import { activePeople, initiativeSectionId } from '../../domain/calc';
 import { formatSek } from '../../domain/format';
 import { joinSorted, sortByName } from '../../domain/sorting';
 import type { AppData, Initiative } from '../../domain/types';
@@ -15,7 +15,7 @@ function missingPrerequisites(data: AppData): string[] {
   return [
     data.sections.length === 0 && 'en sektion',
     data.productOwners.length === 0 && 'en produktägare',
-    data.people.length === 0 && 'personal',
+    activePeople(data).length === 0 && 'personal',
   ].filter((text): text is string => Boolean(text));
 }
 
@@ -39,7 +39,8 @@ export function InitiativesAdmin() {
       // Första året avgör, därefter sista året (t.ex. 2026 före 2026–2027).
       years: (initiative) => initiative.years[0]! * 10_000 + initiative.years.at(-1)!,
       people: personNames,
-      budget: (initiative) => initiative.budget ?? null,
+      internalBudget: (initiative) => initiative.internalBudget ?? null,
+      externalBudget: (initiative) => initiative.externalBudget ?? null,
     },
   );
   const missing = missingPrerequisites(data);
@@ -98,7 +99,8 @@ export function InitiativesAdmin() {
                 {sortHeader('tajma', 'Tajmaklass')}
                 {sortHeader('years', 'År')}
                 {sortHeader('people', 'Personal')}
-                {sortHeader('budget', 'Budget', 'num')}
+                {sortHeader('internalBudget', 'Intern budget', 'num')}
+                {sortHeader('externalBudget', 'Extern budget', 'num')}
                 <th>
                   <span className="sr-only">Åtgärder</span>
                 </th>
@@ -115,9 +117,8 @@ export function InitiativesAdmin() {
                   <td>{initiative.tajmaClass ?? <span className="muted">{MISSING}</span>}</td>
                   <td className="nowrap">{initiative.years.join(', ')}</td>
                   <td className="small">{personNames(initiative) || <span className="muted">Ingen personal</span>}</td>
-                  <td className="num">
-                    {initiative.budget ? formatSek(initiative.budget) : <span className="muted">{MISSING}</span>}
-                  </td>
+                  <BudgetCell budget={initiative.internalBudget} />
+                  <BudgetCell budget={initiative.externalBudget} />
                   <td className="actions">
                     <button
                       type="button"
@@ -152,4 +153,8 @@ export function InitiativesAdmin() {
       )}
     </div>
   );
+}
+
+function BudgetCell({ budget }: { budget: number | null | undefined }) {
+  return <td className="num">{budget ? formatSek(budget) : <span className="muted">{MISSING}</span>}</td>;
 }

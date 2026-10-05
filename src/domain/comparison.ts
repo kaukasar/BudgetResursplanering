@@ -1,5 +1,13 @@
-import { effectiveRate, getMonthActuals, getMonthEstimates, linkedPeople, sumHours, zeroMonths } from './calc';
-import type { AppData, Initiative, MonthActuals, MonthHours, Worker } from './types';
+import {
+  effectiveRate,
+  getMonthActuals,
+  getMonthEstimates,
+  linkedPeople,
+  lockReason,
+  sumHours,
+  zeroMonths,
+} from './calc';
+import type { AppData, Initiative, LockReason, MonthActuals, MonthHours, Worker } from './types';
 
 /**
  * Avvikelse mellan utfall och estimat, räknad endast på månader med rapporterat utfall så att
@@ -41,6 +49,8 @@ export function sumDeviations(deviations: readonly Deviation[]): Deviation {
 
 export interface PersonComparison {
   person: Worker;
+  /** `null` = tiden kan ändras (se `lockReason` i calc). */
+  lockReason: LockReason | null;
   rate: number;
   estimate: MonthHours;
   actual: MonthActuals;
@@ -69,7 +79,14 @@ export function compareInitiative(data: AppData, initiative: Initiative, year: n
     const estimate = getMonthEstimates(data, initiative.id, person.id, year);
     const actual = getMonthActuals(data, initiative.id, person.id, year);
     const rate = effectiveRate(person, data.settings);
-    return { person, rate, estimate, actual, deviation: calculateDeviation(estimate, actual) };
+    return {
+      person,
+      lockReason: lockReason(data, initiative, person),
+      rate,
+      estimate,
+      actual,
+      deviation: calculateDeviation(estimate, actual),
+    };
   });
 
   const months = zeroMonths().map((_, month): MonthComparison => {

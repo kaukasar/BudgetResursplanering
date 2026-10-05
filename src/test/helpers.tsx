@@ -44,6 +44,19 @@ export function seed(): AppData {
   return d;
 }
 
+/** Lägger till Sara (anställd) och produktägaren Stina i Sektion 2. */
+export function withSecondSection(data: AppData): AppData {
+  const d = ops.addPerson(data, {
+    id: 'sara',
+    name: 'Sara',
+    type: 'employee',
+    sectionId: 's2',
+    hourlyRate: null,
+    monthlyHours: null,
+  });
+  return ops.addProductOwner(d, { id: 'stina', name: 'Stina', sectionId: 's2' });
+}
+
 /**
  * Nollställer sparad data och vyinställningar mellan testerna. Redigering i adminläget slås på,
  * eftersom de flesta adminstester ändrar data; spärren testas för sig i editLock.test.tsx.

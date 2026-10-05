@@ -7,7 +7,20 @@ import {
   type PersonCapacity,
 } from './calc';
 import { compareByName } from './sorting';
-import { EXTERNAL_STAFF_LABEL, isExternal, MONTHS_LONG, PERSON_TYPE_LABEL, type AppData, type Person } from './types';
+import {
+  EXTERNAL_STAFF_LABEL,
+  isExternal,
+  LOCK_REASON_LABEL,
+  MONTHS_LONG,
+  PERSON_TYPE_LABEL,
+  type AppData,
+  type Person,
+  type Worker,
+} from './types';
+
+/** Raderad personal märks, så att den går att skilja från en ny person med samma namn. */
+const personLabel = (worker: Worker) =>
+  !isExternal(worker) && worker.deleted ? `${worker.name} (${LOCK_REASON_LABEL.deleted})` : worker.name;
 
 const SEPARATOR = ';';
 const LINE_BREAK = '\r\n';
@@ -86,7 +99,7 @@ export function toAnalysisCsv(data: AppData): string {
             excelText(sectionName(owner?.sectionId)),
             excelText(owner?.name ?? ''),
             excelText(initiative.name),
-            excelText(person.name),
+            excelText(personLabel(person)),
             excelText(isExternal(person) ? '' : sectionName(person.sectionId)),
             isExternal(person) ? EXTERNAL_STAFF_LABEL : PERSON_TYPE_LABEL[person.type],
             excelNumber(estimate),

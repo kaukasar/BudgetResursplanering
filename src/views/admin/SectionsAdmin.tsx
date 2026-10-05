@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
 import { Modal } from '../../components/Modal';
 import { plural } from '../../domain/format';
-import { sectionContents } from '../../domain/operations';
+import { isSectionEmpty, sectionContents } from '../../domain/operations';
 import { sortByName } from '../../domain/sorting';
 import type { Section } from '../../domain/types';
 import { useCanEdit } from '../../store/editLock';
@@ -33,8 +33,7 @@ export function SectionsAdmin() {
   };
 
   const remove = async (section: Section) => {
-    const { people, productOwners } = sectionContents(data, section.id);
-    if (people.length > 0 || productOwners.length > 0) {
+    if (!isSectionEmpty(sectionContents(data, section.id))) {
       setBlocked(section);
       return;
     }
@@ -191,48 +190,25 @@ function RenameSectionDialog({ section, onClose }: { section: Section; onClose: 
 }
 
 /**
- * Visas när man försöker radera en sektion som innehåller personal eller produktägare.
- * Innehållet måste flyttas till en annan sektion (eller raderas under respektive flik) först.
+ * Visas när man försöker radera en sektion som har innehåll. Allt innehåll – personal, produktägare
+ * och initiativ – flyttas tillsammans till en annan sektion först; en sektion med data kan aldrig
+ * raderas.
  */
 function BlockedDeleteDialog({ section, onClose }: { section: Section; onClose: () => void }) {
   const data = useDataStore((state) => state.data);
-  const updatePerson = useDataStore((state) => state.updatePerson);
-  const updateProductOwner = useDataStore((state) => state.updateProductOwner);
+  const moveSectionContents = useDataStore((state) => state.moveSectionContents);
   const deleteSection = useDataStore((state) => state.deleteSection);
 
-  const { people, productOwners, initiatives } = sectionContents(data, section.id);
+  const contents = sectionContents(data, section.id);
   const otherSections = sortByName(data.sections.filter((candidate) => candidate.id !== section.id));
-  const isEmpty = people.length === 0 && productOwners.length === 0;
+  const isEmpty = isSectionEmpty(contents);
   const contentsText = [
-    people.length > 0 && plural(people.length, 'person', 'personer'),
-    productOwners.length > 0 && `${productOwners.length} produktägare`,
+    contents.people.length > 0 && plural(contents.people.length, 'person', 'personer'),
+    contents.productOwners.length > 0 && `${contents.productOwners.length} produktägare`,
+    contents.initiatives.length > 0 && `${contents.initiatives.length} initiativ`,
   ]
     .filter(Boolean)
-    .join(' och ');
-
-  const moveAll = (sectionId: string) => {
-    people.forEach((person) => updatePerson(person.id, { sectionId }));
-    productOwners.forEach((owner) => updateProductOwner(owner.id, { sectionId }));
-  };
-  const initiativeCount = (ownerId: string) =>
-    initiatives.filter((initiative) => initiative.productOwnerId === ownerId).length;
-
-  const moveSelect = (label: string, onMove: (sectionId: string) => void) => (
-    <select
-      className="select"
-      aria-label={label}
-      value=""
-      disabled={otherSections.length === 0}
-      onChange={(e) => e.target.value && onMove(e.target.value)}
-    >
-      <option value="">{otherSections.length > 0 ? 'Flytta till…' : 'Inga andra sektioner'}</option>
-      {otherSections.map((option) => (
-        <option key={option.id} value={option.id}>
-          {option.name}
-        </option>
-      ))}
-    </select>
-  );
+    .join(', ');
 
   const deleteAndClose = () => {
     deleteSection(section.id);
@@ -243,7 +219,6 @@ function BlockedDeleteDialog({ section, onClose }: { section: Section; onClose: 
     <Modal
       title={`Radera ${section.name}`}
       onClose={onClose}
-      wide
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
@@ -260,42 +235,30 @@ function BlockedDeleteDialog({ section, onClose }: { section: Section; onClose: 
           Sektionen är tom. Nu kan <strong>{section.name}</strong> raderas.
         </div>
       ) : (
-        <>
+        <div className="form-stack">
           <div className="notice error" role="alert">
-            <strong>{section.name}</strong> kan inte raderas eftersom den innehåller {contentsText}. Flytta dem till en
-            annan sektion, eller radera dem under flikarna Personal och Produktägare. Initiativ följer med sin
-            produktägare.
+            <strong>{section.name}</strong> kan inte raderas eftersom den har innehåll
+            {contentsText && <> ({contentsText})</>}. Flytta allt till en annan sektion först. Personal, produktägare
+            och initiativ flyttas tillsammans, så att personalen behåller sina initiativ.
           </div>
-          <div className="reassign-row">
-            <span className="name">Flytta allt</span>
-            {moveSelect(`Flytta allt i ${section.name} till sektion`, moveAll)}
-          </div>
-          <div className="reassign-list">
-            {productOwners.map((owner) => (
-              <div key={owner.id} className="reassign-row">
-                <span className="name">
-                  {owner.name}{' '}
-                  <span className="small muted">
-                    produktägare · {plural(initiativeCount(owner.id), 'initiativ', 'initiativ')}
-                  </span>
-                </span>
-                {moveSelect(`Flytta ${owner.name} till sektion`, (sectionId) =>
-                  updateProductOwner(owner.id, { sectionId }),
-                )}
-              </div>
-            ))}
-            {people.map((person) => (
-              <div key={person.id} className="reassign-row">
-                <span className="name">
-                  {person.name} <span className="small muted">personal</span>
-                </span>
-                {moveSelect(`Flytta ${person.name} till sektion`, (sectionId) =>
-                  updatePerson(person.id, { sectionId }),
-                )}
-              </div>
-            ))}
-          </div>
-        </>
+          <label className="field">
+            <span>Flytta allt till</span>
+            <select
+              className="select"
+              aria-label={`Flytta allt i ${section.name} till sektion`}
+              value=""
+              disabled={otherSections.length === 0}
+              onChange={(e) => e.target.value && moveSectionContents(section.id, e.target.value)}
+            >
+              <option value="">{otherSections.length > 0 ? 'Välj sektion…' : 'Det finns inga andra sektioner'}</option>
+              {otherSections.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       )}
     </Modal>
   );

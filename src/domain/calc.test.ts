@@ -109,11 +109,19 @@ describe('filtrering av initiativ', () => {
   it('filtrerar på år, sektion och produktägare', () => {
     let data = domainFixture(); // Portal (Petra, 2026), App (Petra, 2026–2027); Olle saknar initiativ
     data = ops.addProductOwner(data, { id: 'po3', name: 'Stina', sectionId: 's2' });
+    data = ops.addPerson(data, {
+      id: 'bo',
+      name: 'Bo',
+      type: 'employee',
+      sectionId: 's2',
+      hourlyRate: null,
+      monthlyHours: null,
+    });
     data = ops.addInitiative(data, {
       id: 'i3',
       name: 'Lager',
       productOwnerId: 'po3',
-      personIds: ['anna'],
+      personIds: ['bo'],
       years: [2026],
     });
     const ids = (filter: { year: number; sectionId?: string; ownerId?: string }) =>

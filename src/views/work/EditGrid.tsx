@@ -26,11 +26,10 @@ interface Props {
   year: number;
   /** Estimat eller utfall – det som matas in i cellerna. */
   measure: Measure;
-  initiativeSectionId: string | undefined;
 }
 
-/** Tabell där estimat eller utfall matas in per person och månad. */
-export function EditGrid({ data, initiative, year, measure, initiativeSectionId }: Props) {
+/** Tabell där estimat eller utfall matas in per person och månad. Låst tid visas skrivskyddad. */
+export function EditGrid({ data, initiative, year, measure }: Props) {
   const setEstimate = useDataStore((state) => state.setEstimate);
   const setActual = useDataStore((state) => state.setActual);
   const fillActualsFromEstimate = useDataStore((state) => state.fillActualsFromEstimate);
@@ -61,18 +60,21 @@ export function EditGrid({ data, initiative, year, measure, initiativeSectionId 
         </thead>
         <tbody>
           {summary.rows.map((row, rowIndex) => {
-            const { person } = row;
-            // Extern personal har inget tak och kan aldrig bli överallokerad.
-            const capacity = isExternal(person) ? null : personCapacity(data, person, year, measure);
+            const { person, lockReason } = row;
+            const isLocked = lockReason !== null;
+            // Extern personal har inget tak och raderad personal ingen kapacitet; ingen av dem kan
+            // bli överallokerad.
+            const capacity = isExternal(person) || person.deleted ? null : personCapacity(data, person, year, measure);
             const estimates = getMonthEstimates(data, initiative.id, person.id, year);
             const actuals = getMonthActuals(data, initiative.id, person.id, year);
             const canFillFromEstimate =
-              isActual && actuals.slice(0, fillThroughMonth + 1).some((actual) => actual === null);
+              isActual && !isLocked && actuals.slice(0, fillThroughMonth + 1).some((actual) => actual === null);
             return (
-              <tr key={person.id}>
+              <tr key={person.id} className={isLocked ? 'locked' : undefined}>
                 <PersonCell
                   person={person}
-                  details={rateDetails(data, person, row.rate, initiativeSectionId)}
+                  details={rateDetails(person, row.rate)}
+                  lockReason={lockReason}
                   overallocated={capacity?.overallocated}
                   after={
                     canFillFromEstimate && (
@@ -97,6 +99,7 @@ export function EditGrid({ data, initiative, year, measure, initiativeSectionId 
                       value={isActual ? actuals[month]! : estimates[month]!}
                       nullable={isActual}
                       placeholder={isActual ? estimatePlaceholder(estimates[month]!) : '0'}
+                      readOnly={isLocked}
                       label={`${person.name} ${MONTHS_LONG[month]} ${year}, ${initiative.name}${isActual ? ', utfall' : ''}`}
                       grid={`${initiative.id}-${measure}`}
                       row={rowIndex}

@@ -6,6 +6,7 @@ import {
   formatPercent,
   formatSek,
   formatSignedHours,
+  listText,
   parseWholeNumber,
 } from './format';
 
@@ -34,5 +35,12 @@ describe('format', () => {
     expect(formatSignedHours(0.4)).toBe('±0');
     expect(formatInputNumber(625)).toBe('625');
     expect(formatInputNumber(null)).toBe('');
+  });
+
+  it('räknar upp namn med "och" före det sista', () => {
+    expect(listText([])).toBe('');
+    expect(listText(['Portal'])).toBe('Portal');
+    expect(listText(['Portal', 'App'])).toBe('Portal och App');
+    expect(listText(['App', 'Lager', 'Portal'])).toBe('App, Lager och Portal');
   });
 });

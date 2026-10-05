@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { externalHourlyRate, hasExternalStaff } from '../../domain/calc';
+import { activePeople, externalHourlyRate, hasExternalStaff } from '../../domain/calc';
 import { formatInputNumber, formatSek, parseWholeNumber, plural } from '../../domain/format';
 import { EXTERNAL_STAFF, PERSON_TYPE_LABEL, type PersonType } from '../../domain/types';
 import { useCanEdit } from '../../store/editLock';
@@ -23,7 +23,7 @@ export function SettingsAdmin() {
       </div>
       <div className="settings-grid">
         {PERSON_TYPES.map((type) => {
-          const peopleOfType = data.people.filter((person) => person.type === type);
+          const peopleOfType = activePeople(data).filter((person) => person.type === type);
           const usingDefaultRate = peopleOfType.filter((person) => person.hourlyRate === null).length;
           const usingDefaultHours = peopleOfType.filter((person) => person.monthlyHours === null).length;
           return (

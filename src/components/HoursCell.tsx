@@ -13,6 +13,8 @@ interface HoursCellProps {
   nullable?: boolean;
   /** Ledtext i tom cell, t.ex. estimatet när utfall matas in. */
   placeholder?: string;
+  /** Låst tid: värdet visas men kan inte ändras. */
+  readOnly?: boolean;
   /** Grupp-id för tangentbordsnavigering mellan celler i samma tabell. */
   grid: string;
   row: number;
@@ -45,6 +47,7 @@ export function HoursCell({
   label,
   nullable = false,
   placeholder = '0',
+  readOnly = false,
   grid,
   row,
   col,
@@ -74,6 +77,7 @@ export function HoursCell({
       aria-invalid={invalid || undefined}
       title={invalid ? 'Ange ett heltal som är 0 eller större' : undefined}
       placeholder={placeholder}
+      readOnly={readOnly}
       data-grid={grid}
       data-row={row}
       data-col={col}

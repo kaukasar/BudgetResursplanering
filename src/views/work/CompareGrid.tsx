@@ -2,21 +2,19 @@ import { useState } from 'react';
 import { sumHours } from '../../domain/calc';
 import type { Deviation, InitiativeComparison } from '../../domain/comparison';
 import { formatHours, formatSignedHours } from '../../domain/format';
-import { MONTHS, type AppData } from '../../domain/types';
+import { MONTHS } from '../../domain/types';
 import { MISSING } from '../labels';
 import { PersonCell, rateDetails } from './PersonCell';
 
 interface Props {
-  data: AppData;
   year: number;
   comparison: InitiativeComparison;
-  initiativeSectionId: string | undefined;
 }
 
 const DEVIATION_EXPLANATION = 'Utfall minus estimat, för månader med rapporterat utfall';
 
 /** Skrivskyddad tabell med utfall och avvikelse mot estimat per person och månad. */
-export function CompareGrid({ data, year, comparison, initiativeSectionId }: Props) {
+export function CompareGrid({ year, comparison }: Props) {
   const [expandedPersonIds, setExpandedPersonIds] = useState<ReadonlySet<string>>(new Set());
   const toggleExpanded = (personId: string) =>
     setExpandedPersonIds((current) => {
@@ -58,7 +56,8 @@ export function CompareGrid({ data, year, comparison, initiativeSectionId }: Pro
               <tr key={row.person.id}>
                 <PersonCell
                   person={row.person}
-                  details={rateDetails(data, row.person, row.rate, initiativeSectionId)}
+                  details={rateDetails(row.person, row.rate)}
+                  lockReason={row.lockReason}
                   before={
                     <button
                       type="button"

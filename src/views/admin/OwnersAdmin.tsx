@@ -10,7 +10,6 @@ import { useDataStore } from '../../store/store';
 import { MISSING, sectionName } from '../labels';
 import { MissingSectionNotice } from './MissingSectionNotice';
 import { useAdminSort } from './useAdminSort';
-import { useConfirmDeleteInitiative } from './useConfirmDeleteInitiative';
 
 export function OwnersAdmin() {
   const data = useDataStore((state) => state.data);
@@ -160,25 +159,33 @@ function EditOwnerDialog({ owner, onClose }: { owner: ProductOwner; onClose: () 
   const [name, setName] = useState(owner.name);
   const [sectionId, setSectionId] = useState(owner.sectionId);
   const [error, setError] = useState<string | null>(null);
-  const initiativeCount = initiativesForOwner(data, owner.id).length;
+  // Initiativen stannar i sin sektion med sin personal. Byter produktägaren sektion måste
+  // initiativen därför först få en ny produktägare i den nuvarande sektionen.
+  const mustReassign = sectionId !== owner.sectionId && initiativesForOwner(data, owner.id).length > 0;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError('Ange ett namn.');
-    updateProductOwner(owner.id, { name, sectionId });
-    onClose();
+    if (mustReassign) return;
+    try {
+      updateProductOwner(owner.id, { name, sectionId });
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   return (
     <Modal
       title={`Redigera ${owner.name}`}
       onClose={onClose}
+      wide={mustReassign}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
             Avbryt
           </button>
-          <button type="submit" form="edit-owner" className="btn btn-primary">
+          <button type="submit" form="edit-owner" className="btn btn-primary" disabled={mustReassign}>
             Spara
           </button>
         </>
@@ -193,10 +200,14 @@ function EditOwnerDialog({ owner, onClose }: { owner: ProductOwner; onClose: () 
           <span>Sektion</span>
           <SectionSelect sections={data.sections} value={sectionId} onChange={setSectionId} />
         </label>
-        {sectionId !== owner.sectionId && initiativeCount > 0 && (
-          <div className="notice">
-            Produktägarens {initiativeCount} initiativ flyttas med till {sectionName(data, sectionId)}.
-          </div>
+        {mustReassign && (
+          <>
+            <div className="notice error" role="alert">
+              Initiativen stannar i {sectionName(data, owner.sectionId)} med sin personal. Ge varje initiativ en ny
+              produktägare i {sectionName(data, owner.sectionId)} innan {owner.name} kan byta sektion.
+            </div>
+            <ReassignInitiatives owner={owner} />
+          </>
         )}
         {error && (
           <div className="notice error" role="alert">
@@ -209,20 +220,13 @@ function EditOwnerDialog({ owner, onClose }: { owner: ProductOwner; onClose: () 
 }
 
 /**
- * Visas när man försöker radera en produktägare som har initiativ. Initiativen måste
- * flyttas till en annan produktägare i samma sektion eller raderas först.
+ * Visas när man försöker radera en produktägare som har initiativ. Initiativen måste först få en
+ * ny produktägare i samma sektion.
  */
 function BlockedDeleteDialog({ owner, onClose }: { owner: ProductOwner; onClose: () => void }) {
   const data = useDataStore((state) => state.data);
-  const updateInitiative = useDataStore((state) => state.updateInitiative);
   const deleteProductOwner = useDataStore((state) => state.deleteProductOwner);
-  const confirmDeleteInitiative = useConfirmDeleteInitiative();
-
-  const linked = initiativesForOwner(data, owner.id);
-  const ownersInSameSection = sortByName(
-    data.productOwners.filter((candidate) => candidate.id !== owner.id && candidate.sectionId === owner.sectionId),
-  );
-  const linkedText = linked.length === 1 ? 'ett initiativ är kopplat' : `${linked.length} initiativ är kopplade`;
+  const hasInitiatives = initiativesForOwner(data, owner.id).length > 0;
 
   const deleteAndClose = () => {
     deleteProductOwner(owner.id);
@@ -239,52 +243,66 @@ function BlockedDeleteDialog({ owner, onClose }: { owner: ProductOwner; onClose:
           <button type="button" className="btn" onClick={onClose}>
             Avbryt
           </button>
-          <button type="button" className="btn btn-danger" disabled={linked.length > 0} onClick={deleteAndClose}>
+          <button type="button" className="btn btn-danger" disabled={hasInitiatives} onClick={deleteAndClose}>
             Radera produktägare
           </button>
         </>
       }
     >
-      {linked.length > 0 ? (
+      {hasInitiatives ? (
         <>
           <div className="notice error" role="alert">
-            <strong>{owner.name}</strong> kan inte raderas eftersom {linkedText}. Flytta varje initiativ till en annan
-            produktägare i samma sektion ({sectionName(data, owner.sectionId)}) eller radera det.
+            <strong>{owner.name}</strong> har initiativ som först måste få en ny produktägare i{' '}
+            {sectionName(data, owner.sectionId)}.
           </div>
-          <div className="reassign-list">
-            {linked.map((initiative) => (
-              <div key={initiative.id} className="reassign-row">
-                <span className="name">{initiative.name}</span>
-                <select
-                  className="select"
-                  aria-label={`Flytta ${initiative.name} till produktägare`}
-                  value=""
-                  disabled={ownersInSameSection.length === 0}
-                  onChange={(e) =>
-                    e.target.value && updateInitiative(initiative.id, { productOwnerId: e.target.value })
-                  }
-                >
-                  <option value="">
-                    {ownersInSameSection.length > 0 ? 'Flytta till…' : 'Inga andra produktägare i sektionen'}
-                  </option>
-                  {ownersInSameSection.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" className="btn btn-sm" onClick={() => void confirmDeleteInitiative(initiative)}>
-                  Radera initiativ
-                </button>
-              </div>
-            ))}
-          </div>
+          <ReassignInitiatives owner={owner} />
         </>
       ) : (
         <div className="notice success" role="status">
-          Alla initiativ är flyttade eller raderade. Nu kan <strong>{owner.name}</strong> raderas.
+          Alla initiativ har fått en ny produktägare. Nu kan <strong>{owner.name}</strong> raderas.
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Ger produktägarens initiativ en ny produktägare i samma sektion, ett initiativ i taget. */
+function ReassignInitiatives({ owner }: { owner: ProductOwner }) {
+  const data = useDataStore((state) => state.data);
+  const updateInitiative = useDataStore((state) => state.updateInitiative);
+  const linked = sortByName(initiativesForOwner(data, owner.id));
+  const candidates = sortByName(
+    data.productOwners.filter((candidate) => candidate.id !== owner.id && candidate.sectionId === owner.sectionId),
+  );
+
+  if (candidates.length === 0) {
+    return (
+      <div className="notice">
+        Det finns ingen annan produktägare i {sectionName(data, owner.sectionId)}. Skapa först en ny produktägare i
+        sektionen under fliken Produktägare.
+      </div>
+    );
+  }
+  return (
+    <div className="reassign-list">
+      {linked.map((initiative) => (
+        <div key={initiative.id} className="reassign-row">
+          <span className="name">{initiative.name}</span>
+          <select
+            className="select"
+            aria-label={`Ny produktägare för ${initiative.name}`}
+            value=""
+            onChange={(e) => e.target.value && updateInitiative(initiative.id, { productOwnerId: e.target.value })}
+          >
+            <option value="">Välj ny produktägare…</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </div>
   );
 }

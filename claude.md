@@ -10,7 +10,7 @@ All data grupperas i **sektioner**, som ligger högst upp i hierarkin:
 
 ```
 Sektion
-├── Personal (hemsektion; kan lånas ut till initiativ i andra sektioner)
+├── Personal (arbetar endast på initiativ i sin egen sektion)
 └── Produktägare
     └── Initiativ (tillhör samma sektion som sin produktägare)
 ```
@@ -39,7 +39,8 @@ Applikationen har två huvudsakliga lägen:
 * **Egenskaper:**
 * Namn (sträng)
 * Typ: `Anställd` eller `Konsult`
-* Sektion (exakt 1 sektion, personens hemsektion). Personen kan ändå kopplas till initiativ i andra sektioner ("lånas ut").
+* Sektion (exakt 1 sektion). Personen kan bara kopplas till initiativ i sin egen sektion. Tid från personal i andra delar av organisationen registreras som Extern personal (2.7).
+* Status: aktiv eller raderad. Raderad personal finns kvar för den tid som redan registrerats (se 2.8).
 * Timkostnad/Timpris (heltal i SEK/h)
 * Normal arbetstid per månad (heltal, t.ex. 160 timmar/månad)
 
@@ -59,10 +60,12 @@ Applikationen har två huvudsakliga lägen:
 * Namn (sträng)
 * Tillhörig Produktägare (Exakt 1 produktägare)
 * Sektion: väljs inte separat utan är alltid densamma som produktägarens sektion.
-* Kopplad Personal (Minst 1 person). Personal från andra sektioner än initiativets får kopplas.
+* Kopplad Personal (Minst 1 person), endast aktiv personal i initiativets sektion. Personal som senare byter sektion eller raderas finns kvar med låst tid (2.8).
 * Extern personal (frivillig, se 2.7): kan kopplas till initiativet utöver den vanliga personalen. Extern personal räknas inte som en person i kravet på minst 1 kopplad person.
 * År (Ett eller flera relevanta kalenderår)
-* Budget (frivillig): totalbudget i SEK för initiativets alla år. Om budget anges måste den vara ett heltal större än 0.
+* Budget i två delar, båda frivilliga och oberoende av varandra. Ett initiativ kan ha ingen, en eller båda. En angiven budget måste vara ett heltal större än 0, och båda avser initiativets alla år:
+  * **Intern budget** (SEK): för tid från personal i initiativets sektion, även låst tid (2.8).
+  * **Extern budget** (SEK): för tid från Extern personal (2.7).
 * Tajmaklass (frivillig): ett av värdena `IMM`, `Vidareutveckling` eller `Drift`, eller tomt. Standardvärdet är tomt.
 
 
@@ -93,7 +96,19 @@ Ibland lägger personal utanför de ordinarie teamen och sektionerna tid på ett
 * Den kan kopplas till vilket initiativ som helst och har då, precis som övrig personal, både **estimat** och **utfall** per år och månad.
 * **Timkostnad (schablon):** medelvärdet av standardtimkostnaden för anställd och konsult (3.2), avrundat till närmaste heltal. Med standardvärdena 625 och 1 130 kr/h blir det 878 kr/h. Värdet anges inte manuellt och följer automatiskt med när standardvärdena ändras.
 * **Inget tak:** Extern personal har ingen normal arbetstid, eftersom det kan vara en eller flera personer, och kan därför aldrig bli överallokerad.
-* **Ingen sektion:** Extern personal tillhör ingen sektion och markeras inte som inlånad.
+* **Ingen sektion:** Extern personal tillhör ingen sektion, och dess tid låses aldrig.
+
+
+
+### 2.8 Låst tid
+
+En persons tid på ett initiativ är **låst** när personen har bytt till en annan sektion än initiativets, eller när personen har raderats.
+
+* Låst tid finns kvar och räknas med överallt: i summor, kostnader, prognos och utfall av den interna budgeten, nyckeltal och CSV-export.
+* Låst tid kan inte ändras, och ny tid kan inte registreras – varken estimat eller utfall.
+* Låsningen räknas fram och lagras inte: flyttar personen tillbaka till initiativets sektion kan tiden ändras igen.
+* En koppling som blir låst utan att någon tid är registrerad tas bort automatiskt, eftersom det inte finns någon tid att bevara.
+* Data från tidigare versioner, där personal kunde kopplas till initiativ i andra sektioner, får låst tid på dessa initiativ. Ingen tid raderas.
 
 
 
@@ -121,10 +136,10 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 | Sektioner | Namn |
 | Personal | Namn, Sektion, Typ, Timkostnad, Arbetstid/mån, Initiativ |
 | Produktägare | Namn, Sektion, Initiativ |
-| Initiativ | Samtliga: Namn, Sektion, Produktägare, Tajmaklass, År, Personal, Budget |
+| Initiativ | Samtliga: Namn, Sektion, Produktägare, Tajmaklass, År, Personal, Intern budget, Extern budget |
 
 * Text sorteras i svensk alfabetisk ordning (Å, Ä, Ö sist), skiljer inte på versaler och gemener och sorterar siffror i nummerordning ("Fas 2" före "Fas 10").
-* Belopp och timmar (Timkostnad, Arbetstid/mån, Budget) sorteras numeriskt. Timkostnad och arbetstid avser det värde som gäller för personen (eget värde eller standardvärdet för typen).
+* Belopp och timmar (Timkostnad, Arbetstid/mån, Intern budget, Extern budget) sorteras numeriskt. Timkostnad och arbetstid avser det värde som gäller för personen (eget värde eller standardvärdet för typen).
 * År sorteras på initiativets första år och därefter sista år.
 * Kolumnerna Initiativ och Personal sorteras på den visade listan, där namnen står i alfabetisk ordning.
 * Rader som saknar värde (t.ex. initiativ utan budget eller person utan initiativ) hamnar alltid sist, oavsett riktning.
@@ -136,14 +151,16 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * En sektion är det första en användare måste skapa. Personal och produktägare (och därmed initiativ) kan inte skapas förrän minst en sektion finns; gränssnittet hänvisar då till fliken Sektioner.
 * Skapa sektion och byta namn på sektion.
 * Radera sektion:
-* **Regel:** En sektion får endast raderas om den inte har någon personal eller några produktägare (och därmed inga initiativ).
-* Om sektionen har innehåll ska systemet hindra radering, lista berörd personal och berörda produktägare och kräva att dessa flyttas till en annan sektion (enskilt eller allt på en gång) eller raderas först. Initiativ följer med sin produktägare.
+* **Regel:** En sektion får endast raderas när den är tom: ingen personal (inte heller raderad personal med låst tid), inga produktägare och därmed inga initiativ. Att radera en sektion med tillhörande data är inte tillåtet.
+* Om sektionen har innehåll hindrar systemet radering och kräver att allt innehåll först flyttas till en annan sektion med **Flytta allt**. Personal, produktägare och initiativ flyttas då tillsammans, så att personalen behåller sina initiativ och ingen tid låses. Dialogen visar vad sektionen innehåller.
 
 ### 3.2 Hantering av Personal
 
 * Skapa ny personal med namn, typ (`Anställd`/`Konsult`) och sektion.
 * Redigera befintlig personal och deras egenskaper, inklusive byte av sektion.
-* Radera personal.
+* **Byte av sektion:** innan bytet sparas visar en bekräftelsedialog de initiativ där personen blir låst ("Anna blir låst på Portal och App. Tiden finns kvar men kan inte ändras.") och de initiativ där personen kopplas bort eftersom ingen tid är registrerad. Därefter kan personen bara arbeta på initiativ i den nya sektionen.
+* **Radera personal:** personen markeras som raderad och visas inte längre i fliken Personal eller i några val. Tiden som redan registrerats finns kvar men låses (2.8); bekräftelsedialogen visar den per initiativ. Namnet får användas av en ny person.
+* Antalet personal (t.ex. i flikens rubrik) avser aktiv personal.
 * Det ska finnas en global inställning för samtlig personal som anger hur mycket en konsult respektive anställd kostar samt hur många timmar per månad de förväntas att arbeta. Inställningen är gemensam för alla sektioner.
 * **Förifyllda standardvärden:** Anställd 625 kr/h och Konsult 1 130 kr/h, båda med 160 timmar per månad. Värdena gäller tills de ändras under Inställningar, och för alla personer som saknar egen timkostnad eller arbetstid.
 * Under Inställningar visas även **Extern personal** (2.7) med sin schablontimkostnad, "Inget tak" för arbetstiden och antalet initiativ den är kopplad till. Värdena är skrivskyddade och räknas fram automatiskt.
@@ -151,10 +168,11 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 ### 3.3 Hantering av Produktägare
 
 * Skapa och redigera produktägare, inklusive vilken sektion produktägaren tillhör.
-* Byts produktägarens sektion flyttas produktägarens initiativ med till den nya sektionen.
+* **Byte av sektion:** initiativen stannar i sin sektion med sin personal. En produktägare med initiativ kan därför bara byta sektion efter att varje initiativ först fått en ny produktägare i den nuvarande sektionen. Redigeringsdialogen visar initiativen med ett val av ny produktägare för vart och ett, och Spara är avstängd tills alla har fått en ny produktägare.
 * Radera produktägare:
-* **Regel:** En produktägare får endast raderas om den inte har några kopplade initiativ.
-* Om initiativ finns kopplade ska systemet hindra radering, lista alla berörda initiativ och kräva att dessa antingen raderas eller tilldelas en ny produktägare (i samma sektion) först.
+* **Regel:** En produktägare får endast raderas när dess initiativ har fått en ny produktägare i samma sektion.
+* Dialogen listar initiativen med ett val av ny produktägare för vart och ett; Radera är avstängd tills alla har fått en ny. Initiativ kan inte raderas från dialogen (det görs vid behov under fliken Initiativ).
+* Finns ingen annan produktägare i sektionen hänvisar dialogen till att först skapa en ny produktägare i sektionen.
 
 
 
@@ -163,27 +181,25 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Skapa nytt initiativ samt koppla det till **exakt en** produktägare. Initiativet tillhör produktägarens sektion.
 * Redigera initiativets namn, byta produktägare samt lägga till/ta bort kopplad personal.
 * Ett befintligt initiativ kan bara byta till en produktägare **i samma sektion**.
-* Personal från andra sektioner kan kopplas och markeras då som inlånad.
-* **Sektionsfilter för personal:** I formuläret för att skapa och redigera initiativ kan personallistan filtreras på sektion, så att listan inte blir för lång när det finns många sektioner.
-* Filtret visar en knapp per sektion som har personal (samt initiativets egen sektion). Personal från minst en sektion visas alltid, som mest från alla: den sista valda sektionen går inte att avmarkera. Knappen **Alla sektioner** visar personal från samtliga sektioner.
-* **Standard:** endast personal i produktägarens sektion visas. För ett nytt initiativ där produktägare ännu inte är vald visas personal från alla sektioner; när produktägaren väljs eller byts visas i stället den produktägarens sektion.
-* Personal som redan är kopplad till initiativet visas alltid, även om deras sektion är bortfiltrerad. En person som avmarkeras ligger kvar i listan tills formuläret stängs, så att valet kan ångras.
-* Filtret visas bara när fler än en sektion har personal. Valet sparas inte mellan gångerna formuläret öppnas.
-* **Extern personal** (2.7) kopplas med en egen kryssruta under personallistan, som visar schablontimkostnaden och inte påverkas av sektionsfiltret. Den räknas inte med i antalet valda personer. I initiativlistans kolumn Personal visas den som "Extern personal".
-* Ange, ändra eller ta bort initiativets budget (frivillig uppgift). Budgeten anges endast i adminläget.
+* **Personal i formuläret:** personallistan visas först när en produktägare är vald. Den innehåller all aktiv personal i produktägarens sektion och endast den; personal från andra sektioner kan inte kopplas. Innan en produktägare är vald visas en uppmaning att välja produktägare.
+* Byter ett nytt initiativ till en produktägare i en annan sektion avmarkeras vald personal från den tidigare sektionen.
+* Personer med låst tid (bytt sektion eller raderade, 2.8) visas inte i listan, men finns kvar i initiativet med sin tid.
+* **Extern personal** (2.7) kopplas med en egen kryssruta under personallistan, som också visas först när en produktägare är vald och visar schablontimkostnaden. Den räknas inte med i antalet valda personer. I initiativlistans kolumn Personal visas den som "Extern personal", och raderad personal som t.ex. "Anna Andersson (raderad)".
+* Ange, ändra eller ta bort initiativets **intern budget** och **extern budget** i två separata fält (frivilliga uppgifter). Budgeten anges endast i adminläget.
 * Välja initiativets **Tajmaklass** i en lista med värdena: tomt ("– (ingen)"), IMM, Vidareutveckling, Drift. Nya initiativ har tomt värde som standard och kan skapas med tomt värde. Värdet kan ändras och tas bort (sättas till tomt) i efterhand.
-* Initiativlistan i adminläget har kolumnerna Namn, Sektion, Produktägare, Tajmaklass ("–" när värdet är tomt), År, Personal och Budget. Estimat och utfall visas inte i adminläget utan i arbetsläget.
+* Initiativlistan i adminläget har kolumnerna Namn, Sektion, Produktägare, Tajmaklass ("–" när värdet är tomt), År, Personal, Intern budget och Extern budget. Estimat och utfall visas inte i adminläget utan i arbetsläget.
 * Radera initiativ:
 * Ett initiativ ska kunna raderas oavsett vilken information eller vilka timmar som finns kopplade till det.
-* När personal (inklusive Extern personal) eller år tas bort från ett initiativ, eller när personal eller initiativ raderas, raderas både estimat och utfall. Bekräftelsedialogen visar hur många timmar av vardera som försvinner.
+* När personal (inklusive Extern personal) eller år tas bort från ett initiativ, eller när initiativet raderas, raderas både estimat och utfall, även låst tid. Bekräftelsedialogen visar hur många timmar av vardera som försvinner. (När personal raderas raderas däremot ingen tid, se 3.2 och 2.8.)
 
 ### 3.5 Datahantering (fliken Data)
 
 * **Export/import (JSON):** All data och alla inställningar kan exporteras till en JSON-fil och importeras igen (för backup och för att flytta data mellan webbläsare/personer). Import ersätter all befintlig data efter bekräftelse.
 * **Export för Excel (CSV):** Platt analysfil avsedd för t.ex. pivottabeller i Excel.
 * En rad per initiativ, person, år och månad. Alla kopplade personer och initiativets alla år tas med, även månader med 0 timmar.
-* Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (hemsektion), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
+* Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (nuvarande sektion), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
 * Utfall (h), Avvikelse (h) (= utfall − estimat) och Utfallskostnad (kr) lämnas tomma för månader utan rapporterat utfall.
+* Låst tid (2.8) exporteras som övrig tid. Raderad personal exporteras med "(raderad)" efter namnet, t.ex. "Anna Andersson (raderad)", så att den går att skilja från en ny person med samma namn.
 * Extern personal (2.7) exporteras med Person "Extern personal" och Typ "Extern". Personens sektion, Normal arbetstid och Totalt estimat alla initiativ lämnas tomma, och Överallokerad är alltid "Nej".
 * Alla tal i filen är heltal (se 5.4), utan tusentalsavgränsare.
 * Anpassad för svensk Excel: semikolon som avgränsare och UTF-8 med BOM, så att filen kan öppnas direkt med dubbelklick.
@@ -210,11 +226,15 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * **Tabellhuvud:**
 * Initiativets namn samt vilken sektion och produktägare det tillhör, t.ex. "Sektion: Digitala kanaler · Produktägare: Maria Lind".
 * Om initiativet har en tajmaklass visas den efter produktägaren: "· Tajmaklass: IMM". Är tajmaklassen tom visas ingenting – inte heller ordet "Tajmaklass". Gäller i alla vyer (Estimat, Utfall, Jämförelse).
-* För initiativ som har en budget visas även **Budget totalt** (SEK) och **Prognos** (estimerad kostnad som andel av budgeten i procent, med en förloppsstapel). Andelen uppdateras direkt när estimat matas in. Om den estimerade kostnaden överstiger budgeten (>100 %) visas procentsatsen i röd text. För initiativ som gäller flera år anges att andelen avser alla år. Initiativ utan budget visar ingen budgetinformation.
+* För initiativ som har en budget visas varje del av budgeten som ett eget block, **Intern budget** och **Extern budget**, bredvid varandra (intern först). Varje block visar beloppet (SEK) och **Prognos**: den estimerade kostnaden för den delen som andel av den delens budget i procent, med en förloppsstapel.
+  * Den interna budgeten jämförs med kostnaden för personal i sektionen (även låst tid), den externa med kostnaden för Extern personal.
+  * Andelen uppdateras direkt när estimat matas in. Om den estimerade kostnaden överstiger budgeten (>100 %) visas procentsatsen i röd text, för respektive del.
+  * För initiativ som gäller flera år anges att andelen avser alla år.
+  * Saknas en del av budgeten visas inget block för den; initiativ utan budget visar ingen budgetinformation. Någon total budget (summan av delarna) visas inte.
 
 
 * **Kolumner:**
-1. **Personal:** Visar namnet på de personer som är kopplade till initiativet. Personal som lånats in från en annan sektion markeras med sin hemsektion. Är Extern personal (2.7) kopplad visas den som sista rad, märkt "Extern · schablon 878 kr/h", och matas in och summeras som övrig personal i alla vyer.
+1. **Personal:** Visar namnet på de personer som är kopplade till initiativet. Personal med låst tid (2.8) visas med orsaken efter namnet, "Anna Andersson (bytt sektion)" eller "Anna Andersson (raderad)", och raden är skrivskyddad i alla vyer. Är Extern personal (2.7) kopplad visas den som sista rad, märkt "Extern · schablon 878 kr/h", och matas in och summeras som övrig personal i alla vyer.
 2. **Månader (12 kolumner):** Januari till December.
 3. **Totalt timmar per person:** Summan av alla inmatade timmar för personen under året i detta initiativ.
 4. **Totalt kostnad per person:** $(\text{Totalt timmar}) \times (\text{Personens timkostnad})$.
@@ -234,9 +254,9 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 * Samma tabellayout som estimatvyn, men månadscellerna gäller utfall och kolumnen "Totalt h" heter "Utfall h".
 * En tom cell betyder "utfall ej rapporterat" och visar estimatet som grå ledtext. En inskriven 0 betyder rapporterade 0 timmar. Raderas värdet blir cellen åter "ej rapporterad".
-* Knappen **Fyll från estimat** per person fyller i utfall = estimat för avslutade månader (t.o.m. föregående månad) som saknar utfall. Redan rapporterat utfall ändras inte. Knappen visas bara när det finns något att fylla.
-* Tabellhuvudet visar utfall (h) och utfallskostnad för året. För initiativ med budget visas **Utfall** (utfallskostnad) och **Prognos** (estimerad kostnad) i procent av budgeten (alla år), med en stapel där utfallet är heldraget och prognosen ljusare bakom. Prognos över 100 % visas i röd text. **Prognosen ändras inte när utfall matas in, rättas eller tas bort** – endast utfallsprocenten gör det.
-* **Färg på utfallet:** Utfallsprocenten och dess del av stapeln (indikatorn) färgas efter utfallets egen andel av budgeten: **grön** när utfallet är 100 % eller mindre, **röd** när det är 101 % eller mer. Gränsen avser den visade, till hela procent avrundade siffran (100,4 % visas som "100 %" och är grön; 100,6 % visas som "101 %" och är röd). Färgen påverkas inte av prognosen. Samma regel gäller budgetrutan i vyn Jämförelse.
+* Knappen **Fyll från estimat** per person fyller i utfall = estimat för avslutade månader (t.o.m. föregående månad) som saknar utfall. Redan rapporterat utfall ändras inte. Knappen visas bara när det finns något att fylla, och aldrig för låst tid.
+* Tabellhuvudet visar utfall (h) och utfallskostnad för året. För initiativ med budget visas, för varje del av budgeten (intern och extern), **Utfall** (utfallskostnad för den delen) och **Prognos** (estimerad kostnad för den delen) i procent av den delens budget (alla år), med en stapel där utfallet är heldraget och prognosen ljusare bakom. Prognos över 100 % visas i röd text. **Prognosen ändras inte när utfall matas in, rättas eller tas bort** – endast utfallsprocenten gör det.
+* **Färg på utfallet:** Utfallsprocenten och dess del av stapeln (indikatorn) färgas, för varje del av budgeten, efter utfallets egen andel av den delens budget: **grön** när utfallet är 100 % eller mindre, **röd** när det är 101 % eller mer. Gränsen avser den visade, till hela procent avrundade siffran (100,4 % visas som "100 %" och är grön; 100,6 % visas som "101 %" och är röd). Färgen påverkas inte av prognosen. Samma regel gäller budgetrutan i vyn Jämförelse.
 * Överallokering (röd text) beräknas på utfall.
 
 ### 4.4 Vyn Jämförelse
@@ -245,20 +265,20 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * Varje månadscell visar utfallet och under det avvikelsen mot estimatet med ▲ (mer tid än planerat) eller ▼ (mindre tid). Månader utan rapporterat utfall visas som "–". Avvikelser markeras med symboler och neutral färg (▲ orange, ▼ blå). Röd färg är reserverad för överallokering.
 * Kolumnerna till höger: **Estimat h** (helår), **Utfall h** och **Avvikelse** (timmar och procent). Avvikelsen räknas endast på månader med rapporterat utfall.
 * Ett klick på pilen vid en person fäller ut en extra rad med estimatet per månad.
-* Tabellhuvudet visar för valt år, i ordning: **Avvikelse** (timmar), **Utfallskostnad** (initiativets totala kostnad för rapporterad tid, dvs. summan av alla personers rapporterade timmar × respektive persons timkostnad) och **Prognos** (estimerad kostnad). För initiativ med budget visas därefter budgetens utfall och prognos som i 4.3.
-* Nyckeltal visar, i ordning: antal initiativ, totalt estimat (h) och totalt utfall (h) för året bredvid varandra, **Prognos kostnad** (estimerad kostnad) och till höger om den **Utfallskostnad** (faktisk total kostnad: rapporterade timmar × respektive persons timkostnad), och sist **Budget** (se 4.5). Nyckeltalen avser de initiativ som visas, dvs. följer års-, sektions- och produktägarfiltret. Kapacitetsöversikten visar estimatet.
+* Tabellhuvudet visar för valt år, i ordning: **Avvikelse** (timmar), **Utfallskostnad** (initiativets totala kostnad för rapporterad tid, dvs. summan av alla personers rapporterade timmar × respektive persons timkostnad) och **Prognos** (estimerad kostnad). För initiativ med budget visas därefter utfall och prognos för den interna och den externa budgeten som i 4.3.
+* Nyckeltal visar, i ordning: antal initiativ, totalt estimat (h) och totalt utfall (h) för året bredvid varandra, **Prognos kostnad** (estimerad kostnad) och till höger om den **Utfallskostnad** (faktisk total kostnad: rapporterade timmar × respektive persons timkostnad), och sist **Intern budget** och **Extern budget** (se 4.5). Nyckeltalen avser de initiativ som visas, dvs. följer års-, sektions- och produktägarfiltret. Kapacitetsöversikten visar estimatet.
 
 ### 4.5 Nyckeltal och kapacitetsöversikt per vy
 
 | Vy | Nyckeltal | Kapacitetsöversikt |
 |---|---|---|
-| Estimat | Initiativ, planerade timmar, planerad kostnad, överallokerade personmånader, budget | Planerad tid |
-| Utfall | Initiativ, utfall (h), utfallskostnad, överallokerade personmånader (utfall), budget | Rapporterat utfall |
-| Jämförelse | Initiativ, estimat (h), utfall (h), prognos kostnad (= estimerad kostnad), utfallskostnad (faktisk kostnad), budget | Estimat |
+| Estimat | Initiativ, planerade timmar, planerad kostnad, överallokerade personmånader, intern budget, extern budget | Planerad tid |
+| Utfall | Initiativ, utfall (h), utfallskostnad, överallokerade personmånader (utfall), intern budget, extern budget | Rapporterat utfall |
+| Jämförelse | Initiativ, estimat (h), utfall (h), prognos kostnad (= estimerad kostnad), utfallskostnad (faktisk kostnad), intern budget, extern budget | Estimat |
 
 * Nyckeltalen visar ingen sammanlagd avvikelse mot estimat. Avvikelsen visas per person, månad och initiativ i jämförelsevyns tabeller (4.4).
-* **Budget** visas längst till höger i alla vyer: summan av budgeten för de initiativ som visas (följer års-, sektions- och produktägarfiltret). Initiativ utan budget räknas inte med; ett tips anger hur många av de visade initiativen som har budget. Saknar alla visade initiativ budget visas "–".
-* Budgeten är en totalbudget för initiativets alla år och räknas med i sin helhet, till skillnad från övriga nyckeltal som avser valt år. Gäller något av de visade initiativen med budget flera år heter nyckeltalet **Budget (alla år)**.
+* **Intern budget** och **Extern budget** visas längst till höger i alla vyer, som två separata nyckeltal: summan av den interna respektive externa budgeten för de initiativ som visas (följer års-, sektions- och produktägarfiltret). Initiativ utan den delen av budgeten räknas inte med; ett tips anger hur många av de visade initiativen som har intern respektive extern budget. Saknar alla visade initiativ den delen visas "–".
+* Budgeten avser initiativets alla år och räknas med i sin helhet, till skillnad från övriga nyckeltal som avser valt år. Gäller något av de visade initiativen med den delen av budgeten flera år får nyckeltalet tillägget "(alla år)", t.ex. **Intern budget (alla år)**.
 
 
 
@@ -270,16 +290,19 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * Kostnad per person & månad = $\text{Timmar} \times \text{Timkostnad}$.
 * Totalkostnad för initiativ = Summan av alla personers kostnader för initiativet.
 * **Prognos** = estimerad kostnad = summan av estimerade timmar × respektive persons timkostnad, dvs. den beror på vilken personal som arbetar med initiativet och hur många timmar de planeras lägga. Prognosen beror **enbart** på estimatet och påverkas aldrig av utfall.
-* Prognos av budget (%) = (Estimerad kostnad för initiativets **alla år**) / Budget × 100.
-* Utfall av budget (%) = (Utfallskostnad för initiativets **alla år**) / Budget × 100.
+* Prognos och utfall av budget beräknas för varje del av budgeten:
+  * Prognos av intern budget (%) = (Estimerad kostnad för personal i sektionen, även låst tid, för initiativets **alla år**) / Intern budget × 100.
+  * Prognos av extern budget (%) = (Estimerad kostnad för Extern personal, initiativets **alla år**) / Extern budget × 100.
+  * Utfall av intern respektive extern budget (%) beräknas på samma sätt med utfallskostnaden.
 * Utfallskostnad = Utfall (timmar) × Timkostnad. Timkostnaden är alltid den aktuella; ändras den räknas även historiskt utfall om.
-* Extern personals timkostnad = (standardtimkostnad anställd + standardtimkostnad konsult) / 2, avrundad till närmaste heltal (2.7). Extern personals timmar och kostnader räknas med i initiativets summor, i prognos och utfall av budget och i nyckeltalen för timmar och kostnad.
+* Extern personals timkostnad = (standardtimkostnad anställd + standardtimkostnad konsult) / 2, avrundad till närmaste heltal (2.7). Extern personals timmar och kostnader räknas med i initiativets summor, i prognos och utfall av den externa budgeten och i nyckeltalen för timmar och kostnad.
 * **Avvikelse** = Utfall − Estimat, beräknat endast på månader med rapporterat utfall. Avvikelse i procent = Avvikelse / Estimat (för samma månader) × 100.
 
 
 2. **Indikering vid Överallokering (Kapacitetskontroll):**
 * Systemet ska beräkna en persons **totala allokering i alla initiativ sammanlagt** per månad, oavsett vilken sektion initiativen tillhör.
 * Extern personal (2.7) har inget tak och kan aldrig bli överallokerad. Den visas inte i kapacitetsöversikten och räknas inte i nyckeltalet för överallokerade personmånader.
+* Raderad personal visas inte heller i kapacitetsöversikten och räknas inte som överallokerad. Personal som bytt sektion visas som vanligt, med all sin tid, även den låsta.
 * Beräkningen görs på utfall i utfallsvyn och på estimat i övriga vyer.
 * Om en persons totala arbetstid för en specifik månad överskrider personens inställda *normala arbetstid* (t.ex. >160 timmar), ska detta indikeras visuellt med **röd färg** i gränssnittet där personen förekommer.
 * Markeringen görs med **röd text**: personens namn samt timsiffran för den överallokerade månaden visas i rött. Cellerna ska **inte** få röd bakgrundsfärg.
@@ -287,6 +310,7 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 3. **Kopplingskrav:**
 * Personal och produktägare måste alltid tillhöra exakt 1 sektion. Undantag: Extern personal (2.7) tillhör ingen sektion.
+* Personal kan bara kopplas till initiativ i sin egen sektion. Raderad personal kan inte kopplas.
 * Ett initiativ måste alltid ha exakt 1 produktägare, och tillhör alltid produktägarens sektion.
 * Det ska gå att ta bort personal från ett initiativ i adminläget tills det inte finns någon personal kvar (eller tills initiativet tas bort).
 
@@ -304,5 +328,5 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 * **Gränssnitt (UI):** Enkelt, funktionellt, reaktivt UI så att summo- och kostnadsberäkningar uppdateras direkt vid inmatning utan att sidan laddas om.
 * **Tillstånd & Lagring:** Enkel och direkt lagring, någon form av localstorage. Applikationen kommer att hantera en liten datamängd och skall ej ha någon databas eller backend. Informationen som matas in i applikationen måste lagras persistent.
-* **Bakåtkompatibilitet:** Data från tidigare versioner utan sektioner (sparad data eller importerad fil) flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde. Decimaltal i äldre data (timmar, timkostnad, arbetstid och budget) avrundas till närmaste heltal vid inläsning och import.
+* **Bakåtkompatibilitet:** Data från tidigare versioner utan sektioner (sparad data eller importerad fil) flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde. Decimaltal i äldre data (timmar, timkostnad, arbetstid och budget) avrundas till närmaste heltal vid inläsning och import. En budget från tidigare versioner, som bara hade en budget, blir **intern budget**; den externa budgeten lämnas tom.
 * **Säkerhet** Ingen inloggning eller autentisering. Alla som har länken ska kunna utnyttja alla features. Redigeringsspärren i adminläget (3) skyddar endast mot oavsiktliga ändringar; vem som helst kan slå på redigering.

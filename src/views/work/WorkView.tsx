@@ -1,4 +1,4 @@
-import { allInitiativeYears, filterInitiatives } from '../../domain/calc';
+import { activePeople, allInitiativeYears, filterInitiatives } from '../../domain/calc';
 import { sortByName } from '../../domain/sorting';
 import type { AppData } from '../../domain/types';
 import { useDataStore } from '../../store/store';
@@ -29,7 +29,8 @@ export function WorkView() {
 
   const initiatives = sortByName(filterInitiatives(data, { year, sectionId, ownerId }));
   const involvedPersonIds = new Set(initiatives.flatMap((initiative) => initiative.personIds));
-  const involvedPeople = sortByName(data.people.filter((person) => involvedPersonIds.has(person.id)));
+  // Raderad personal visas inte i kapacitetsöversikten och räknas inte som överallokerad.
+  const involvedPeople = sortByName(activePeople(data).filter((person) => involvedPersonIds.has(person.id)));
   const years = [...new Set([...allInitiativeYears(data), new Date().getFullYear(), year])].sort((a, b) => a - b);
 
   return (

@@ -36,11 +36,20 @@ export function sampleData(
     productOwnerId: string,
     personIds: string[],
     years: number[],
-    budget: number | null = null,
+    budgets: { internal?: number; external?: number } = {},
     tajmaClass: TajmaClass | null = null,
   ) => {
     const id = newId();
-    data = ops.addInitiative(data, { id, name, productOwnerId, personIds, years, budget, tajmaClass });
+    data = ops.addInitiative(data, {
+      id,
+      name,
+      productOwnerId,
+      personIds,
+      years,
+      internalBudget: budgets.internal ?? null,
+      externalBudget: budgets.external ?? null,
+      tajmaClass,
+    });
     return id;
   };
   const plan = (initiativeId: string, personId: string, planYear: number, months: number[]) => {
@@ -61,18 +70,22 @@ export function sampleData(
   const maria = owner('Maria Lind', digitalSection);
   const johan = owner('Johan Sjö', dataSection);
 
-  // Bengt (Data & Analys) lånas ut till Mobilapp och David (Digitala kanaler) till Datalager & BI.
+  // Personal arbetar bara på initiativ i sin egen sektion; tid från andra registreras som Extern personal.
   const portal = initiative(
     'Kundportal 2.0',
     maria,
     [anna, cecilia, david],
     [year, year + 1],
-    3_500_000,
+    { internal: 3_500_000 },
     'Vidareutveckling',
   );
-  const app = initiative('Mobilapp', maria, [anna, bengt], [year], 1_200_000, 'IMM'); // planerat över budget
+  const app = initiative('Mobilapp', maria, [anna, david], [year], { internal: 900_000 }, 'IMM'); // planerat över budget
   // Datalager & BI får även några timmar från Extern personal (personal utanför de ordinarie teamen).
-  const bi = initiative('Datalager & BI', johan, [bengt, eva, david, EXTERNAL_STAFF_ID], [year]);
+  // Den externa budgeten avser tiden för Extern personal.
+  const bi = initiative('Datalager & BI', johan, [bengt, eva, EXTERNAL_STAFF_ID], [year], {
+    internal: 1_600_000,
+    external: 100_000,
+  });
 
   // Estimerade timmar per månad, januari–december.
   plan(portal, anna, year, [80, 80, 100, 100, 80, 60, 0, 40, 80, 80, 80, 40]);
@@ -80,10 +93,9 @@ export function sampleData(
   plan(portal, david, year, [40, 40, 60, 60, 60, 40, 0, 20, 60, 60, 60, 20]);
   plan(portal, anna, year + 1, [60, 60, 60, 40, 0, 0, 0, 0, 0, 0, 0, 0]);
   plan(app, anna, year, [60, 60, 80, 60, 60, 40, 0, 40, 60, 60, 60, 40]); // mar: 180 h totalt → överallokerad
-  plan(app, bengt, year, [120, 120, 120, 120, 120, 80, 0, 60, 120, 120, 120, 60]);
-  plan(bi, bengt, year, [40, 40, 40, 40, 40, 40, 0, 40, 40, 40, 40, 40]);
+  plan(app, david, year, [40, 40, 40, 40, 40, 20, 0, 20, 40, 80, 40, 20]); // okt: 140 h > 120 h → överallokerad
+  plan(bi, bengt, year, [120, 120, 120, 120, 120, 100, 0, 80, 120, 120, 120, 80]);
   plan(bi, eva, year, [100, 100, 100, 100, 100, 80, 0, 60, 100, 100, 100, 60]);
-  plan(bi, david, year, [60, 60, 60, 60, 60, 40, 0, 40, 60, 80, 60, 40]); // okt: 140 h > 120 h → överallokerad
   plan(bi, EXTERNAL_STAFF_ID, year, [10, 0, 20, 0, 10, 0, 0, 0, 30, 20, 0, 0]);
 
   // Utfall för avslutade månader, med viss avvikelse mot estimatet.
@@ -102,10 +114,9 @@ export function sampleData(
   report(portal, cecilia, 3, 8);
   report(portal, david, 5);
   report(app, anna, 7);
-  report(app, bengt, 2);
+  report(app, david, 2);
   report(bi, bengt, 9);
   report(bi, eva, 4, -6);
-  report(bi, david, 11);
   report(bi, EXTERNAL_STAFF_ID, 6);
 
   return data;
