@@ -8,14 +8,14 @@ import {
   type CostByPart,
 } from '../../domain/calc';
 import { compareInitiative, type InitiativeComparison } from '../../domain/comparison';
-import { formatHours, formatSek, formatSignedHours } from '../../domain/format';
+import { formatSek, formatSignedHours } from '../../domain/format';
 import type { AppData, Initiative } from '../../domain/types';
 import type { WorkView } from '../../store/ui';
 import { ownerName, sectionName } from '../labels';
 import { BudgetSummary } from './BudgetSummary';
 import { CompareGrid } from './CompareGrid';
 import { EditGrid } from './EditGrid';
-import { VIEW_LABEL } from './workViews';
+import { VIEW_LABEL, VIEW_MEASURE } from './workViews';
 
 interface Props {
   data: AppData;
@@ -44,8 +44,14 @@ export function InitiativeTable({ data, initiative, year, view }: Props) {
           </div>
         </div>
         <div className="totals">
-          {view === 'estimate' && <EstimateKeyFigures data={data} initiative={initiative} year={year} />}
-          {view === 'actual' && <ActualKeyFigures data={data} initiative={initiative} year={year} />}
+          {view !== 'compare' && (
+            <CostByPartFigures
+              initiative={initiative}
+              cost={costByPart(summarizeInitiative(data, initiative, year, VIEW_MEASURE[view]))}
+              label={view === 'estimate' ? 'Prognos' : 'Utfall'}
+              year={year}
+            />
+          )}
           {comparison && <CompareKeyFigures data={data} initiative={initiative} year={year} comparison={comparison} />}
           {budgets.map((budget) => (
             <BudgetSummary key={budget.part} budget={budget} initiative={initiative} year={year} view={view} />
@@ -70,29 +76,10 @@ interface KeyFiguresProps {
   year: number;
 }
 
-function EstimateKeyFigures({ data, initiative, year }: KeyFiguresProps) {
-  const estimate = summarizeInitiative(data, initiative, year, 'estimate');
-  return (
-    <>
-      <KeyFigure label={`Timmar ${year}`} value={`${formatHours(estimate.totalHours)} h`} />
-      <CostByPartFigures initiative={initiative} cost={costByPart(estimate)} label="Prognos" year={year} />
-    </>
-  );
-}
-
-function ActualKeyFigures({ data, initiative, year }: KeyFiguresProps) {
-  const actual = summarizeInitiative(data, initiative, year, 'actual');
-  return (
-    <>
-      <KeyFigure label={`Utfall ${year}`} value={`${formatHours(actual.totalHours)} h`} />
-      <CostByPartFigures initiative={initiative} cost={costByPart(actual)} label="Utfall" year={year} />
-    </>
-  );
-}
-
 /**
- * Årets kostnad uppdelad på intern personal och Extern personal. Totalen syns i summeringsraden
- * längst ner. Den externa kostnaden visas bara när Extern personal är kopplad till initiativet.
+ * Årets kostnad uppdelad på intern personal och Extern personal, i estimat- och utfallsvyn. Timmar
+ * och total kostnad visas inte här utan i tabellens totalkolumn och summeringsrad. Den externa
+ * kostnaden visas bara när Extern personal är kopplad till initiativet.
  */
 function CostByPartFigures({
   initiative,

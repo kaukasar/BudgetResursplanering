@@ -112,7 +112,7 @@ export function EditGrid({ data, initiative, year, measure }: Props) {
                     />
                   </td>
                 ))}
-                <td className="num total">{formatHours(row.totalHours)}</td>
+                <td className="num total">{formatHours(row.totalHours)} h</td>
                 <td className="num cost">{formatSek(row.totalCost)}</td>
               </tr>
             );
@@ -126,7 +126,7 @@ export function EditGrid({ data, initiative, year, measure }: Props) {
                 {formatHours(total)}
               </td>
             ))}
-            <td className="num total">{formatHours(summary.totalHours)}</td>
+            <td className="num total">{formatHours(summary.totalHours)} h</td>
             <td className="num cost">{formatSek(summary.totalCost)}</td>
           </tr>
         </tfoot>

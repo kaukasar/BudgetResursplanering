@@ -225,7 +225,7 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 * **Tabellhuvud:**
 * Initiativets namn samt vilken sektion och produktägare det tillhör, t.ex. "Sektion: Digitala kanaler · Produktägare: Maria Lind".
-* Tabellhuvudet visar årets timmar (**Timmar**) och den estimerade kostnaden för året uppdelad i **Prognos intern** (personal i sektionen, även låst tid) och **Prognos extern** (Extern personal), t.ex. "Prognos intern 2026". Den totala kostnaden visas inte i tabellhuvudet; den syns i summeringsraden längst ner. **Prognos extern** visas bara när Extern personal är kopplad till initiativet.
+* Tabellhuvudet visar den estimerade kostnaden för året uppdelad i **Prognos intern** (personal i sektionen, även låst tid) och **Prognos extern** (Extern personal), t.ex. "Prognos intern 2026". Timmar och total kostnad visas inte i tabellhuvudet, så att samma information inte förekommer på två ställen; de syns i totalkolumnen och summeringsraden. **Prognos extern** visas bara när Extern personal är kopplad till initiativet.
 * Om initiativet har en tajmaklass visas den efter produktägaren: "· Tajmaklass: IMM". Är tajmaklassen tom visas ingenting – inte heller ordet "Tajmaklass". Gäller i alla vyer (Estimat, Utfall, Jämförelse).
 * För initiativ som har en budget visas varje del av budgeten som ett eget block, **Intern budget** och **Extern budget**, bredvid varandra (intern först). Varje block visar beloppet (SEK) och **Prognos**: den estimerade kostnaden för den delen som andel av den delens budget i procent, med en förloppsstapel.
   * Den interna budgeten jämförs med kostnaden för personal i sektionen (även låst tid), den externa med kostnaden för Extern personal.
@@ -237,7 +237,7 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * **Kolumner:**
 1. **Personal:** Visar namnet på de personer som är kopplade till initiativet. Personal med låst tid (2.8) visas med orsaken efter namnet, "Anna Andersson (bytt sektion)" eller "Anna Andersson (raderad)", och raden är skrivskyddad i alla vyer. Är Extern personal (2.7) kopplad visas den som sista rad, märkt "Extern · schablon 878 kr/h", och matas in och summeras som övrig personal i alla vyer.
 2. **Månader (12 kolumner):** Januari till December.
-3. **Totalt timmar per person:** Summan av alla inmatade timmar för personen under året i detta initiativ.
+3. **Totalt timmar per person:** Summan av alla inmatade timmar för personen under året i detta initiativ, med enheten efter siffran (t.ex. "107 h"), på samma sätt som kostnaderna visas med "kr".
 4. **Totalt kostnad per person:** $(\text{Totalt timmar}) \times (\text{Personens timkostnad})$.
 
 
@@ -248,15 +248,15 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 * **Summeringsrad (Längst ned i varje initiativtabell):**
 * Summa timmar per månad för hela initiativet.
-* **Totalsumma timmar:** Totala timmar för alla personer under hela året på initiativet.
+* **Totalsumma timmar:** Totala timmar för alla personer under hela året på initiativet (t.ex. "118 h").
 * **Totalsumma kostnad:** Total finansiell kostnad för hela initiativet ($SEK$).
 
 ### 4.3 Vyn Utfall
 
-* Samma tabellayout som estimatvyn, men månadscellerna gäller utfall och kolumnen "Totalt h" heter "Utfall h".
+* Samma tabellayout som estimatvyn, men månadscellerna gäller utfall och kolumnen "Totalt h" heter "Utfall h". Även där visas timmarna med "h" efter siffran.
 * En tom cell betyder "utfall ej rapporterat" och visar estimatet som grå ledtext. En inskriven 0 betyder rapporterade 0 timmar. Raderas värdet blir cellen åter "ej rapporterad".
 * Knappen **Fyll från estimat** per person fyller i utfall = estimat för avslutade månader (t.o.m. föregående månad) som saknar utfall. Redan rapporterat utfall ändras inte. Knappen visas bara när det finns något att fylla, och aldrig för låst tid.
-* Tabellhuvudet visar årets utfall i timmar (**Utfall**) och utfallskostnaden för året uppdelad i **Utfall intern** (personal i sektionen, även låst tid) och **Utfall extern** (Extern personal), t.ex. "Utfall intern 2026". Den totala utfallskostnaden visas inte i tabellhuvudet; den syns i summeringsraden längst ner. **Utfall extern** visas bara när Extern personal är kopplad till initiativet. För initiativ med budget visas, för varje del av budgeten (intern och extern), **Utfall** (utfallskostnad för den delen) och **Prognos** (estimerad kostnad för den delen) i procent av den delens budget (alla år), med en stapel där utfallet är heldraget och prognosen ljusare bakom. Prognos över 100 % visas i röd text. **Prognosen ändras inte när utfall matas in, rättas eller tas bort** – endast utfallsprocenten gör det.
+* Tabellhuvudet visar utfallskostnaden för året uppdelad i **Utfall intern** (personal i sektionen, även låst tid) och **Utfall extern** (Extern personal), t.ex. "Utfall intern 2026". Timmar och total utfallskostnad visas inte i tabellhuvudet; de syns i totalkolumnen och summeringsraden. **Utfall extern** visas bara när Extern personal är kopplad till initiativet. För initiativ med budget visas, för varje del av budgeten (intern och extern), **Utfall** (utfallskostnad för den delen) och **Prognos** (estimerad kostnad för den delen) i procent av den delens budget (alla år), med en stapel där utfallet är heldraget och prognosen ljusare bakom. Prognos över 100 % visas i röd text. **Prognosen ändras inte när utfall matas in, rättas eller tas bort** – endast utfallsprocenten gör det.
 * **Färg på utfallet:** Utfallsprocenten och dess del av stapeln (indikatorn) färgas, för varje del av budgeten, efter utfallets egen andel av den delens budget: **grön** när utfallet är 100 % eller mindre, **röd** när det är 101 % eller mer. Gränsen avser den visade, till hela procent avrundade siffran (100,4 % visas som "100 %" och är grön; 100,6 % visas som "101 %" och är röd). Färgen påverkas inte av prognosen. Samma regel gäller budgetrutan i vyn Jämförelse.
 * Överallokering (röd text) beräknas på utfall.
 

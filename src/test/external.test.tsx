@@ -65,20 +65,19 @@ describe('kostnaden i tabellhuvudet', () => {
     const user = userEvent.setup();
     renderApp();
 
-    expect(headerFigures('Portal')).toEqual([
-      `Timmar ${YEAR}: 30 h`,
-      `Prognos intern ${YEAR}: 13 000 kr`,
-      `Prognos extern ${YEAR}: 8 750 kr`,
-    ]);
-    // Totalen syns i summeringsraden längst ner.
-    expect(within(initiativeSection('Portal')).getAllByRole('row').at(-1)).toHaveTextContent('21 750 kr');
+    // Timmar och total kostnad visas inte i rubriken, bara i totalkolumnen och summeringsraden.
+    expect(headerFigures('Portal')).toEqual([`Prognos intern ${YEAR}: 13 000 kr`, `Prognos extern ${YEAR}: 8 750 kr`]);
+    const rows = within(initiativeSection('Portal')).getAllByRole('row');
+    const totalCell = (row: HTMLElement) => row.querySelector('td.total')!.textContent;
+    expect(totalCell(rows.find((row) => within(row).queryByText('Anna'))!)).toBe('20 h');
+    expect(totalCell(rows.at(-1)!)).toBe('30 h');
+    expect(rows.at(-1)).toHaveTextContent('21 750 kr');
 
     await user.click(screen.getByRole('button', { name: 'Utfall' }));
-    expect(headerFigures('Portal')).toEqual([
-      `Utfall ${YEAR}: 14 h`,
-      `Utfall intern ${YEAR}: 6 500 kr`,
-      `Utfall extern ${YEAR}: 3 500 kr`,
-    ]);
+    expect(headerFigures('Portal')).toEqual([`Utfall intern ${YEAR}: 6 500 kr`, `Utfall extern ${YEAR}: 3 500 kr`]);
+    expect(within(initiativeSection('Portal')).getAllByRole('row').at(-1)!.querySelector('td.total')).toHaveTextContent(
+      '14 h',
+    );
 
     // Jämförelsevyn är oförändrad.
     await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
@@ -92,7 +91,7 @@ describe('kostnaden i tabellhuvudet', () => {
   it('den externa kostnaden visas bara när Extern personal är kopplad', () => {
     useDataStore.setState({ data: ops.setEstimate(seed(), 'portal', 'anna', YEAR, 0, 20) });
     renderApp();
-    expect(headerFigures('Portal')).toEqual([`Timmar ${YEAR}: 20 h`, `Prognos intern ${YEAR}: 13 000 kr`]);
+    expect(headerFigures('Portal')).toEqual([`Prognos intern ${YEAR}: 13 000 kr`]);
   });
 });
 
