@@ -1,6 +1,12 @@
 import { KeyFigure } from '../../components/KeyFigure';
 import { budgetStatuses } from '../../domain/budget';
-import { initiativeSectionId, summarizeInitiative } from '../../domain/calc';
+import {
+  costByPart,
+  hasExternalStaff,
+  initiativeSectionId,
+  summarizeInitiative,
+  type CostByPart,
+} from '../../domain/calc';
 import { compareInitiative, type InitiativeComparison } from '../../domain/comparison';
 import { formatHours, formatSek, formatSignedHours } from '../../domain/format';
 import type { AppData, Initiative } from '../../domain/types';
@@ -69,7 +75,7 @@ function EstimateKeyFigures({ data, initiative, year }: KeyFiguresProps) {
   return (
     <>
       <KeyFigure label={`Timmar ${year}`} value={`${formatHours(estimate.totalHours)} h`} />
-      <KeyFigure label={`Kostnad ${year}`} value={formatSek(estimate.totalCost)} />
+      <CostByPartFigures initiative={initiative} cost={costByPart(estimate)} label="Prognos" year={year} />
     </>
   );
 }
@@ -79,7 +85,41 @@ function ActualKeyFigures({ data, initiative, year }: KeyFiguresProps) {
   return (
     <>
       <KeyFigure label={`Utfall ${year}`} value={`${formatHours(actual.totalHours)} h`} />
-      <KeyFigure label={`Utfallskostnad ${year}`} value={formatSek(actual.totalCost)} />
+      <CostByPartFigures initiative={initiative} cost={costByPart(actual)} label="Utfall" year={year} />
+    </>
+  );
+}
+
+/**
+ * Årets kostnad uppdelad på intern personal och Extern personal. Totalen syns i summeringsraden
+ * längst ner. Den externa kostnaden visas bara när Extern personal är kopplad till initiativet.
+ */
+function CostByPartFigures({
+  initiative,
+  cost,
+  label,
+  year,
+}: {
+  initiative: Initiative;
+  cost: CostByPart;
+  label: 'Prognos' | 'Utfall';
+  year: number;
+}) {
+  const what = label === 'Prognos' ? 'Estimerad kostnad' : 'Utfallskostnad';
+  return (
+    <>
+      <KeyFigure
+        label={`${label} intern ${year}`}
+        value={formatSek(cost.internal)}
+        title={`${what} för personal i sektionen`}
+      />
+      {hasExternalStaff(initiative) && (
+        <KeyFigure
+          label={`${label} extern ${year}`}
+          value={formatSek(cost.external)}
+          title={`${what} för Extern personal`}
+        />
+      )}
     </>
   );
 }

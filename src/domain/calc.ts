@@ -113,6 +113,20 @@ export function summarizeInitiative(
   };
 }
 
+export interface CostByPart {
+  /** Personal i sektionen, även låst tid. */
+  internal: number;
+  /** Extern personal. */
+  external: number;
+}
+
+/** Kostnaden i en sammanställning, uppdelad på intern personal och Extern personal. */
+export function costByPart(summary: InitiativeSummary): CostByPart {
+  const costOf = (external: boolean) =>
+    sumHours(summary.rows.filter((row) => isExternal(row.person) === external).map((row) => row.totalCost));
+  return { internal: costOf(false), external: costOf(true) };
+}
+
 /** Personal kopplad till initiativet, i initiativets ordning. Extern personal kommer alltid sist. */
 export function linkedPeople(data: AppData, initiative: Initiative): Worker[] {
   const peopleById = new Map(data.people.map((person) => [person.id, person]));

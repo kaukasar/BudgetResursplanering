@@ -1,7 +1,14 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { domainFixture } from '../test/domainFixture';
-import { effectiveRate, externalHourlyRate, hoursLostByUpdate, linkedPeople, summarizeInitiative } from './calc';
+import {
+  costByPart,
+  effectiveRate,
+  externalHourlyRate,
+  hoursLostByUpdate,
+  linkedPeople,
+  summarizeInitiative,
+} from './calc';
 import { compareInitiative } from './comparison';
 import { toAnalysisCsv } from './csv';
 import * as ops from './operations';
@@ -35,6 +42,20 @@ describe('Extern personal', () => {
     expect(summary.rows.at(-1)).toMatchObject({ person: EXTERNAL_STAFF, rate: 875, totalHours: 10, totalCost: 8750 });
     expect(summary.totalHours).toBe(30);
     expect(summary.totalCost).toBe(20 * 650 + 10 * 875);
+  });
+
+  it('kostnaden kan delas upp på intern personal och Extern personal', () => {
+    let d = withExternalStaff();
+    d = ops.setEstimate(d, 'i1', 'anna', 2026, 0, 20); // 20 × 650 = 13 000
+    d = ops.setEstimate(d, 'i1', 'kalle', 2026, 0, 5); // 5 × 1 000 = 5 000
+    d = ops.setEstimate(d, 'i1', EXTERNAL_STAFF_ID, 2026, 0, 10); // 10 × 875 = 8 750
+    const summary = summarizeInitiative(
+      d,
+      d.initiatives.find((i) => i.id === 'i1')!,
+      2026,
+    );
+    expect(costByPart(summary)).toEqual({ internal: 18_000, external: 8_750 });
+    expect(summary.totalCost).toBe(26_750);
   });
 
   it('har både estimat och utfall och jämförs som övrig personal', () => {

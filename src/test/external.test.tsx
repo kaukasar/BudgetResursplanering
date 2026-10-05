@@ -49,6 +49,53 @@ describe('Extern personal i arbetsläget', () => {
   });
 });
 
+describe('kostnaden i tabellhuvudet', () => {
+  const headerFigures = (initiative: string) =>
+    [...initiativeSection(initiative).querySelectorAll('.initiative-head .totals > div > .label')].map(
+      (label) => `${label.textContent}: ${label.nextElementSibling!.textContent}`,
+    );
+
+  it('delas upp i intern och extern prognos och utfall i estimat- och utfallsvyn, men inte i jämförelsevyn', async () => {
+    let d = seedWithExternalStaff();
+    d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 20); // 13 000
+    d = ops.setEstimate(d, 'portal', EXTERNAL_STAFF_ID, YEAR, 0, 10); // 8 750
+    d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 10); // 6 500
+    d = ops.setActual(d, 'portal', EXTERNAL_STAFF_ID, YEAR, 0, 4); // 3 500
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(headerFigures('Portal')).toEqual([
+      `Timmar ${YEAR}: 30 h`,
+      `Prognos intern ${YEAR}: 13 000 kr`,
+      `Prognos extern ${YEAR}: 8 750 kr`,
+    ]);
+    // Totalen syns i summeringsraden längst ner.
+    expect(within(initiativeSection('Portal')).getAllByRole('row').at(-1)).toHaveTextContent('21 750 kr');
+
+    await user.click(screen.getByRole('button', { name: 'Utfall' }));
+    expect(headerFigures('Portal')).toEqual([
+      `Utfall ${YEAR}: 14 h`,
+      `Utfall intern ${YEAR}: 6 500 kr`,
+      `Utfall extern ${YEAR}: 3 500 kr`,
+    ]);
+
+    // Jämförelsevyn är oförändrad.
+    await user.click(screen.getByRole('button', { name: 'Jämförelse' }));
+    expect(headerFigures('Portal').map((figure) => figure.split(':')[0])).toEqual([
+      `Avvikelse ${YEAR}`,
+      `Utfallskostnad ${YEAR}`,
+      `Prognos ${YEAR}`,
+    ]);
+  });
+
+  it('den externa kostnaden visas bara när Extern personal är kopplad', () => {
+    useDataStore.setState({ data: ops.setEstimate(seed(), 'portal', 'anna', YEAR, 0, 20) });
+    renderApp();
+    expect(headerFigures('Portal')).toEqual([`Timmar ${YEAR}: 20 h`, `Prognos intern ${YEAR}: 13 000 kr`]);
+  });
+});
+
 describe('intern och extern budget i tabellhuvudet', () => {
   it('visas var för sig: intern mot personal i sektionen, extern mot Extern personal', async () => {
     let d = ops.updateInitiative(seedWithExternalStaff(), 'portal', {

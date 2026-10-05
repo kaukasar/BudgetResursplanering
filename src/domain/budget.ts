@@ -1,14 +1,5 @@
-import { summarizeInitiative, sumHours } from './calc';
-import {
-  BUDGET_PARTS,
-  budgetOf,
-  isExternal,
-  type AppData,
-  type BudgetPart,
-  type Initiative,
-  type Measure,
-  type Worker,
-} from './types';
+import { costByPart, summarizeInitiative, sumHours } from './calc';
+import { BUDGET_PARTS, budgetOf, type AppData, type BudgetPart, type Initiative, type Measure } from './types';
 
 export interface BudgetStatus {
   part: BudgetPart;
@@ -34,15 +25,8 @@ export function calculateBudgetStatus(data: AppData, initiative: Initiative, par
   const budget = budgetOf(initiative, part);
   if (!budget || budget <= 0) return null;
 
-  const belongsToPart = (worker: Worker) => isExternal(worker) === (part === 'external');
   const costForAllYears = (measure: Measure) =>
-    sumHours(
-      initiative.years.flatMap((year) =>
-        summarizeInitiative(data, initiative, year, measure)
-          .rows.filter((row) => belongsToPart(row.person))
-          .map((row) => row.totalCost),
-      ),
-    );
+    sumHours(initiative.years.map((year) => costByPart(summarizeInitiative(data, initiative, year, measure))[part]));
   const percentOfBudget = (cost: number) => (cost / budget) * 100;
   const plannedCost = costForAllYears('estimate');
   const actualCost = costForAllYears('actual');
