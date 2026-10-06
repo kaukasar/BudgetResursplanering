@@ -2,13 +2,24 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as ops from '../domain/operations';
-import type { AppData } from '../domain/types';
+import { emptyData, type AppData } from '../domain/types';
 import { DATA_STORAGE_KEY, useDataStore } from '../store/store';
 import { cell, initiativeSection, renderApp, resetStores, seed, withSecondSection, YEAR } from './helpers';
 
 beforeEach(resetStores);
 
 describe('arbetsläge', () => {
+  it('hänvisar till adminläget när det saknas initiativ, utan möjlighet att ladda exempeldata', async () => {
+    useDataStore.setState({ data: emptyData() });
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(screen.getByText('Det finns inga initiativ ännu')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ladda exempeldata' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Gå till adminläget' }));
+    expect(screen.getByRole('tablist', { name: 'Administration' })).toBeInTheDocument();
+  });
+
   it('räknar om summor och kostnader direkt vid inmatning', async () => {
     const user = userEvent.setup();
     renderApp();

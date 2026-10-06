@@ -1,26 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
+import { ErrorNotice } from '../../components/ErrorNotice';
 import { Modal } from '../../components/Modal';
-import {
-  activePeople,
-  externalHourlyRate,
-  hoursLostByUpdate,
-  storedHoursForPersonInInitiative,
-  type HoursLoss,
-} from '../../domain/calc';
-import { formatInputNumber, formatSek, hoursPairText, parseOptionalWholeNumber } from '../../domain/format';
+import { activePeopleInSection, hoursLostByUpdate, ownerSectionId, type HoursLoss } from '../../domain/calc';
+import { formatInputNumber, hoursPairText, parseOptionalWholeNumber } from '../../domain/format';
 import { sortByName } from '../../domain/sorting';
-import {
-  EXTERNAL_STAFF,
-  EXTERNAL_STAFF_LABEL,
-  PERSON_TYPE_LABEL,
-  TAJMA_CLASSES,
-  type AppData,
-  type Initiative,
-  type TajmaClass,
-} from '../../domain/types';
+import { EXTERNAL_STAFF_ID, TAJMA_CLASSES, type AppData, type Initiative, type TajmaClass } from '../../domain/types';
 import { useDataStore } from '../../store/store';
 import { personName, sectionName } from '../labels';
+import { InitiativePeopleField } from './InitiativePeopleField';
+import { toggle } from './toggle';
+import { YearsField } from './YearsField';
 
 interface Props {
   initiative?: Initiative;
@@ -33,21 +23,28 @@ interface Props {
 function describeHoursLoss(data: AppData, loss: HoursLoss): string[] {
   return [
     ...loss.people.map(
-      (person) =>
-        `${personName(data, person.personId)}: ${hoursPairText(person.estimate, person.actual)} (tas bort från initiativet)`,
+      (person) => `${personName(data, person.personId)}: ${hoursPairText(person)} (tas bort från initiativet)`,
     ),
-    ...loss.years.map((year) => `År ${year.year}: ${hoursPairText(year.estimate, year.actual)} (året tas bort)`),
+    ...loss.years.map((year) => `År ${year.year}: ${hoursPairText(year)} (året tas bort)`),
   ];
 }
 
-/** Förra året och fyra år framåt, plus alla år som redan är valda eller sparade på initiativet. */
-function yearChoices(currentYear: number, ...selectedYears: number[][]): number[] {
-  const nearbyYears = Array.from({ length: 5 }, (_, offset) => currentYear - 1 + offset);
-  return [...new Set([...nearbyYears, ...selectedYears.flat()])].sort((a, b) => a - b);
+/** Intern och extern budget är frivilliga och oberoende; en angiven budget är ett heltal över 0. */
+function parseBudget(text: string): { value: number | null; invalid: boolean } {
+  const parsed = parseOptionalWholeNumber(text);
+  return { value: parsed.ok ? parsed.value : null, invalid: !parsed.ok || parsed.value === 0 };
 }
 
-const toggle = <T,>(list: T[], value: T) =>
-  list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+/** Produktägarna grupperade per sektion. Ett befintligt initiativ kan bara byta inom sin sektion. */
+function ownerGroups(data: AppData, onlySectionId: string | undefined) {
+  return sortByName(data.sections)
+    .filter((section) => !onlySectionId || section.id === onlySectionId)
+    .map((section) => ({
+      section,
+      owners: sortByName(data.productOwners.filter((owner) => owner.sectionId === section.id)),
+    }))
+    .filter((group) => group.owners.length > 0);
+}
 
 export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
   const data = useDataStore((state) => state.data);
@@ -55,79 +52,35 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
   const updateInitiative = useDataStore((state) => state.updateInitiative);
   const confirm = useConfirm();
   const isNew = !initiative;
-  const currentYear = new Date().getFullYear();
-
-  const sectionOfOwner = (id: string) => data.productOwners.find((owner) => owner.id === id)?.sectionId;
-  /** Personal som kan kopplas: aktiv personal i sektionen. */
-  const selectablePeople = (sectionId: string | undefined) =>
-    sortByName(activePeople(data).filter((person) => person.sectionId === sectionId));
 
   const [name, setName] = useState(initiative?.name ?? '');
   const [ownerId, setOwnerId] = useState(initiative?.productOwnerId ?? defaultOwnerId ?? '');
-  const [years, setYears] = useState<number[]>(initiative?.years ?? [currentYear]);
+  const [years, setYears] = useState<number[]>(initiative?.years ?? [new Date().getFullYear()]);
   // Personer med låst tid (bytt sektion eller raderade) visas inte i listan men finns kvar i
   // initiativet, eftersom låst tid inte kan ändras.
   const [personIds, setPersonIds] = useState<string[]>(initiative?.personIds ?? []);
-  const [extraYear, setExtraYear] = useState('');
   const [internalBudget, setInternalBudget] = useState(formatInputNumber(initiative?.internalBudget ?? null));
   const [externalBudget, setExternalBudget] = useState(formatInputNumber(initiative?.externalBudget ?? null));
   // Tom sträng = ingen tajmaklass (standard för nya initiativ).
   const [tajmaClass, setTajmaClass] = useState<TajmaClass | ''>(initiative?.tajmaClass ?? '');
   const [error, setError] = useState<string | null>(null);
 
-  // Intern och extern budget är frivilliga och oberoende; en angiven budget är ett heltal över 0.
-  const parseBudget = (text: string) => {
-    const parsed = parseOptionalWholeNumber(text);
-    return { value: parsed.ok ? parsed.value : null, invalid: !parsed.ok || parsed.value === 0 };
-  };
   const parsedInternal = parseBudget(internalBudget);
   const parsedExternal = parseBudget(externalBudget);
-
-  // Initiativets sektion följer produktägaren. Ett befintligt initiativ kan bara byta till en
-  // produktägare i samma sektion; nya initiativ kan välja produktägare i alla sektioner.
-  const lockedSectionId = initiative
-    ? data.productOwners.find((owner) => owner.id === initiative.productOwnerId)?.sectionId
-    : undefined;
-  const ownerGroups = sortByName(data.sections)
-    .filter((section) => !lockedSectionId || section.id === lockedSectionId)
-    .map((section) => ({
-      section,
-      owners: sortByName(data.productOwners.filter((owner) => owner.sectionId === section.id)),
-    }))
-    .filter((group) => group.owners.length > 0);
-  // Personal kan bara kopplas från produktägarens sektion och visas först när en produktägare är vald.
-  const selectedSectionId = sectionOfOwner(ownerId);
-  const people = selectablePeople(selectedSectionId);
+  // Initiativets sektion följer produktägaren, och personal kan bara kopplas från den sektionen.
+  const selectedSectionId = ownerSectionId(data, ownerId);
+  const people = sortByName(activePeopleInSection(data, selectedSectionId));
   const selectedCount = people.filter((person) => personIds.includes(person.id)).length;
-
-  const togglePerson = (personId: string) => setPersonIds((current) => toggle(current, personId));
-
-  /** "40 h estimat, 12 h utfall" som redan finns sparat för personen i initiativet. */
-  const storedHoursText = (personId: string) =>
-    initiative
-      ? hoursPairText(
-          storedHoursForPersonInInitiative(data, initiative.id, personId, 'estimate'),
-          storedHoursForPersonInInitiative(data, initiative.id, personId, 'actual'),
-        )
-      : '';
 
   // Ett nytt initiativ kan byta produktägare till en annan sektion; vald personal från den tidigare
   // sektionen kan då inte längre kopplas och avmarkeras.
   const changeOwner = (id: string) => {
-    const newSectionId = sectionOfOwner(id);
+    const newSectionId = ownerSectionId(data, id);
     if (newSectionId !== selectedSectionId) {
-      const allowed = new Set([EXTERNAL_STAFF.id, ...selectablePeople(newSectionId).map((person) => person.id)]);
-      setPersonIds((current) => current.filter((personId) => allowed.has(personId)));
+      const linkable = activePeopleInSection(data, newSectionId).map((person) => person.id);
+      setPersonIds((current) => current.filter((id) => id === EXTERNAL_STAFF_ID || linkable.includes(id)));
     }
     setOwnerId(id);
-  };
-
-  const addExtraYear = () => {
-    const year = Number(extraYear);
-    if (!Number.isInteger(year) || year < 1900 || year > 2200) return setError('Ange ett giltigt årtal, t.ex. 2030.');
-    setYears((current) => (current.includes(year) ? current : [...current, year]));
-    setExtraYear('');
-    setError(null);
   };
 
   const validationError = () => {
@@ -223,15 +176,17 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
               <option value="" disabled>
                 Välj produktägare…
               </option>
-              {ownerGroups.map(({ section, owners }) => (
-                <optgroup key={section.id} label={section.name}>
-                  {owners.map((owner) => (
-                    <option key={owner.id} value={owner.id}>
-                      {owner.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
+              {ownerGroups(data, initiative && ownerSectionId(data, initiative.productOwnerId)).map(
+                ({ section, owners }) => (
+                  <optgroup key={section.id} label={section.name}>
+                    {owners.map((owner) => (
+                      <option key={owner.id} value={owner.id}>
+                        {owner.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ),
+              )}
             </select>
             <span className="small muted field-hint">
               Sektion: {selectedSectionId ? sectionName(data, selectedSectionId) : '– (följer produktägaren)'}
@@ -240,26 +195,18 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
         </div>
 
         <div className="form-row">
-          <label className="field">
-            <span>Intern budget (kr, frivillig)</span>
-            <input
-              className={parsedInternal.invalid ? 'input invalid' : 'input'}
-              inputMode="numeric"
-              placeholder="Ingen budget"
-              value={internalBudget}
-              onChange={(e) => setInternalBudget(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>Extern budget (kr, frivillig)</span>
-            <input
-              className={parsedExternal.invalid ? 'input invalid' : 'input'}
-              inputMode="numeric"
-              placeholder="Ingen budget"
-              value={externalBudget}
-              onChange={(e) => setExternalBudget(e.target.value)}
-            />
-          </label>
+          <BudgetField
+            label="Intern budget (kr, frivillig)"
+            value={internalBudget}
+            invalid={parsedInternal.invalid}
+            onChange={setInternalBudget}
+          />
+          <BudgetField
+            label="Extern budget (kr, frivillig)"
+            value={externalBudget}
+            invalid={parsedExternal.invalid}
+            onChange={setExternalBudget}
+          />
         </div>
         <p className="small muted form-note">
           Budgetarna gäller initiativets alla år. Den interna budgeten avser tid för personal i sektionen och den
@@ -285,111 +232,46 @@ export function InitiativeForm({ initiative, defaultOwnerId, onClose }: Props) {
           </label>
         </div>
 
-        <fieldset className="field plain">
-          <legend>År</legend>
-          <div className="chips">
-            {yearChoices(currentYear, years, initiative?.years ?? []).map((year) => (
-              <label key={year} className={years.includes(year) ? 'chip checked' : 'chip'}>
-                <input
-                  type="checkbox"
-                  checked={years.includes(year)}
-                  onChange={() => setYears((current) => toggle(current, year))}
-                />
-                {year}
-              </label>
-            ))}
-            <span className="inline-form">
-              <input
-                className="input year-input"
-                inputMode="numeric"
-                placeholder="Annat år"
-                aria-label="Lägg till annat år"
-                value={extraYear}
-                onChange={(e) => setExtraYear(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addExtraYear();
-                  }
-                }}
-              />
-              <button type="button" className="btn" onClick={addExtraYear} disabled={!extraYear.trim()}>
-                Lägg till
-              </button>
-            </span>
-          </div>
-        </fieldset>
+        <YearsField years={years} onChange={setYears} savedYears={initiative?.years ?? []} onError={setError} />
 
         {selectedSectionId ? (
-          <>
-            <fieldset className="field plain">
-              <legend>
-                Personal i {sectionName(data, selectedSectionId)}{' '}
-                <span className="muted small">
-                  ({selectedCount} valda{isNew ? ', minst 1' : ''})
-                </span>
-              </legend>
-              {people.length === 0 ? (
-                <div className="notice">
-                  Det finns ingen personal i {sectionName(data, selectedSectionId)}. Lägg till personal under fliken
-                  Personal.
-                </div>
-              ) : (
-                <div className="check-list">
-                  {people.map((person) => {
-                    const storedHours = storedHoursText(person.id);
-                    return (
-                      <label key={person.id}>
-                        <input
-                          type="checkbox"
-                          checked={personIds.includes(person.id)}
-                          onChange={() => togglePerson(person.id)}
-                        />
-                        <span>{person.name}</span>
-                        <span className={`tag ${person.type}`}>{PERSON_TYPE_LABEL[person.type]}</span>
-                        <span className="spacer" />
-                        {storedHours && <span className="small muted">{storedHours}</span>}
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </fieldset>
-
-            <fieldset className="field plain">
-              <legend>Extern personal</legend>
-              <div className="check-list">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={personIds.includes(EXTERNAL_STAFF.id)}
-                    onChange={() => togglePerson(EXTERNAL_STAFF.id)}
-                  />
-                  <span>{EXTERNAL_STAFF.name}</span>
-                  <span className="tag external">{EXTERNAL_STAFF_LABEL}</span>
-                  <span className="small muted">schablon {formatSek(externalHourlyRate(data.settings))}/h</span>
-                  <span className="spacer" />
-                  {storedHoursText(EXTERNAL_STAFF.id) && (
-                    <span className="small muted">{storedHoursText(EXTERNAL_STAFF.id)}</span>
-                  )}
-                </label>
-              </div>
-              <p className="small muted form-note">
-                Samlad tid från personal utanför sektionen och de ordinarie teamen. Timkostnaden är medelvärdet av
-                standardtimkostnaden för anställd och konsult, och arbetstiden har inget tak.
-              </p>
-            </fieldset>
-          </>
+          <InitiativePeopleField
+            data={data}
+            initiative={initiative}
+            sectionId={selectedSectionId}
+            people={people}
+            personIds={personIds}
+            selectedCount={selectedCount}
+            onToggle={(personId) => setPersonIds((current) => toggle(current, personId))}
+          />
         ) : (
           <div className="notice">Välj en produktägare för att se personalen i produktägarens sektion.</div>
         )}
 
-        {error && (
-          <div className="notice error" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
       </form>
     </Modal>
+  );
+}
+
+interface BudgetFieldProps {
+  label: string;
+  value: string;
+  invalid: boolean;
+  onChange: (value: string) => void;
+}
+
+function BudgetField({ label, value, invalid, onChange }: BudgetFieldProps) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input
+        className={invalid ? 'input invalid' : 'input'}
+        inputMode="numeric"
+        placeholder="Ingen budget"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
   );
 }

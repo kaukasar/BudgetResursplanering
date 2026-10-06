@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
+import { ErrorNotice } from '../../components/ErrorNotice';
 import { Modal } from '../../components/Modal';
-import { storedHoursForPersonInInitiative } from '../../domain/calc';
-import { SectionSelect } from '../../components/SectionSelect';
+import { preselectedSectionId, SectionSelect } from '../../components/SectionSelect';
+import { hasStoredHours, storedEstimateAndActual } from '../../domain/calc';
 import { formatHours, formatInputNumber, formatSek, listText, parseOptionalWholeNumber } from '../../domain/format';
 import { initiativesLockedBySectionChange } from '../../domain/operations';
 import { sortByName } from '../../domain/sorting';
-import { PERSON_TYPE_LABEL, type Person, type PersonType } from '../../domain/types';
+import { PERSON_TYPE_LABEL, PERSON_TYPES, type Initiative, type Person, type PersonType } from '../../domain/types';
 import { useDataStore } from '../../store/store';
 
 interface Props {
@@ -14,22 +15,19 @@ interface Props {
   onClose: () => void;
 }
 
-const PERSON_TYPES = Object.keys(PERSON_TYPE_LABEL) as PersonType[];
+const initiativeNames = (initiatives: Initiative[]) => listText(sortByName(initiatives).map(({ name }) => name));
 
 /** Formulär för att skapa eller redigera en person. Tomma värden = ärv typens standard. */
 export function PersonForm({ person, onClose }: Props) {
-  const settings = useDataStore((state) => state.data.settings);
-  const sections = useDataStore((state) => state.data.sections);
+  const data = useDataStore((state) => state.data);
   const addPerson = useDataStore((state) => state.addPerson);
   const updatePerson = useDataStore((state) => state.updatePerson);
-  const data = useDataStore((state) => state.data);
   const confirm = useConfirm();
-  // Med en enda sektion förväljs den.
-  const defaultSectionId = sections.length === 1 ? sections[0]!.id : '';
+  const { settings, sections } = data;
 
   const [name, setName] = useState(person?.name ?? '');
   const [type, setType] = useState<PersonType>(person?.type ?? 'employee');
-  const [sectionId, setSectionId] = useState(person?.sectionId ?? defaultSectionId);
+  const [sectionId, setSectionId] = useState(person?.sectionId ?? preselectedSectionId(sections));
   const [rate, setRate] = useState(formatInputNumber(person?.hourlyRate ?? null));
   const [hours, setHours] = useState(formatInputNumber(person?.monthlyHours ?? null));
   const [error, setError] = useState<string | null>(null);
@@ -44,11 +42,10 @@ export function PersonForm({ person, onClose }: Props) {
   const confirmSectionChange = async (current: Person) => {
     const affected = initiativesLockedBySectionChange(data, current.id, sectionId);
     if (affected.length === 0) return true;
-    const hasHours = (initiativeId: string) =>
-      storedHoursForPersonInInitiative(data, initiativeId, current.id, 'estimate') > 0 ||
-      storedHoursForPersonInInitiative(data, initiativeId, current.id, 'actual') > 0;
-    const locked = affected.filter((initiative) => hasHours(initiative.id));
-    const unlinked = affected.filter((initiative) => !hasHours(initiative.id));
+    const hasHours = (initiative: Initiative) =>
+      hasStoredHours(storedEstimateAndActual(data, initiative.id, current.id));
+    const locked = affected.filter(hasHours);
+    const unlinked = affected.filter((initiative) => !hasHours(initiative));
     return confirm({
       title: 'Byt sektion',
       confirmLabel: 'Byt sektion',
@@ -56,14 +53,12 @@ export function PersonForm({ person, onClose }: Props) {
         <>
           {locked.length > 0 && (
             <p>
-              {current.name} blir låst på {listText(sortByName(locked).map((initiative) => initiative.name))}. Tiden
-              finns kvar men kan inte ändras.
+              {current.name} blir låst på {initiativeNames(locked)}. Tiden finns kvar men kan inte ändras.
             </p>
           )}
           {unlinked.length > 0 && (
             <p>
-              {current.name} kopplas bort från {listText(sortByName(unlinked).map((initiative) => initiative.name))},
-              där ingen tid är registrerad.
+              {current.name} kopplas bort från {initiativeNames(unlinked)}, där ingen tid är registrerad.
             </p>
           )}
           <p>Personen kan därefter bara arbeta på initiativ i den nya sektionen.</p>
@@ -163,11 +158,7 @@ export function PersonForm({ person, onClose }: Props) {
           (inställningar). Ändras standardvärdena följer personen med automatiskt.
         </p>
 
-        {error && (
-          <div className="notice error" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
       </form>
     </Modal>
   );

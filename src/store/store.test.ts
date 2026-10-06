@@ -1,12 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getMonthActuals, personCapacity } from '../domain/calc';
-import { sampleData } from '../domain/sample';
+import { domainFixture } from '../test/domainFixture';
 import { emptyData, type AppData } from '../domain/types';
 import { DATA_STORAGE_KEY, useDataStore } from './store';
-
-let counter = 0;
-// Fast datum gör exemplets utfall (avslutade månader) oberoende av när testet körs.
-const sample = () => sampleData(2026, () => `id-${++counter}`, new Date(2026, 8, 15));
 
 beforeEach(() => {
   localStorage.clear();
@@ -22,9 +17,9 @@ describe('persistens', () => {
     expect(stored.state.data.productOwners).toEqual([{ id, name: 'Petra', sectionId }]);
 
     useDataStore.setState({ data: emptyData() }, false);
-    localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify({ state: { data: sample() }, version: 1 }));
+    localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify({ state: { data: domainFixture() }, version: 1 }));
     await useDataStore.persist.rehydrate();
-    expect(useDataStore.getState().data.initiatives).toHaveLength(3);
+    expect(useDataStore.getState().data).toEqual(domainFixture());
   });
 
   it('startar tomt och sparar en backup om sparad data är trasig', async () => {
@@ -38,20 +33,6 @@ describe('persistens', () => {
     expect(localStorage.getItem(`${DATA_STORAGE_KEY}.backup`)).toBe(broken);
     expect(error).toHaveBeenCalled();
     error.mockRestore();
-  });
-
-  it('exempeldatan är giltig och innehåller överallokering', () => {
-    const d = sample();
-    expect(d.people).toHaveLength(5);
-    expect(d.productOwners).toHaveLength(2);
-    expect(d.initiatives).toHaveLength(3);
-    const overallocated = d.people
-      .map((p) => [p.name, personCapacity(d, p, 2026).overallocated.flatMap((over, m) => (over ? [m] : []))] as const)
-      .filter(([, months]) => months.length > 0);
-    expect(overallocated).toEqual([
-      ['Anna Andersson', [2]], // mars
-      ['David Dahl', [9]], // oktober
-    ]);
   });
 });
 
@@ -79,15 +60,16 @@ describe('vyinställningar', () => {
     state.sortAdminBy('people', 'rate');
     expect(useUiStore.getState().adminSort.people).toEqual({ key: 'rate', direction: 'desc' });
   });
-});
 
-describe('exempeldata', () => {
-  it('har utfall för avslutade månader men inte för innevarande eller kommande', () => {
-    const data = sample(); // "idag" = 15 september 2026
-    const portal = data.initiatives.find((initiative) => initiative.name === 'Kundportal 2.0')!;
-    const anna = data.people.find((person) => person.name === 'Anna Andersson')!;
-    const actuals = getMonthActuals(data, portal.id, anna.id, 2026);
-    expect(actuals.slice(0, 8).every((actual) => actual !== null)).toBe(true); // jan–aug
-    expect(actuals.slice(8).every((actual) => actual === null)).toBe(true); // sep–dec
+  it('öppnar fliken Export för den som senast var på den tidigare fliken Data, och behåller sorteringen', async () => {
+    const { useUiStore } = await import('./ui');
+    const adminSort = { ...useUiStore.getState().adminSort, people: { key: 'rate', direction: 'desc' } };
+    localStorage.setItem(
+      'ekonomi.ui',
+      JSON.stringify({ state: { mode: 'admin', adminTab: 'data', adminSort }, version: 2 }),
+    );
+    await useUiStore.persist.rehydrate();
+    expect(useUiStore.getState().adminTab).toBe('export');
+    expect(useUiStore.getState().adminSort).toEqual(adminSort);
   });
 });

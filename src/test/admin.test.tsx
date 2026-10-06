@@ -320,17 +320,16 @@ describe('adminläge', () => {
     expect(names()).toEqual(['Cirkus', 'Portal', 'App']); // IMM, Drift, (tom) – tomt fortfarande sist
   });
 
-  it('frågar innan exempeldata ersätter befintlig data, även när bara sektioner finns', async () => {
-    useDataStore.setState({ data: ops.addSection(emptyData(), { id: 's', name: 'Min sektion' }) });
+  it('fliken Export har bara export till Excel (CSV)', async () => {
     const user = userEvent.setup();
     renderApp('admin');
-    await user.click(screen.getByRole('tab', { name: 'Data' }));
-    await user.click(screen.getByRole('button', { name: 'Ladda exempeldata' }));
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).not.toContain('Data');
+    await user.click(screen.getByRole('tab', { name: 'Export' }));
 
-    const dialog = topDialog();
-    expect(dialog).toHaveTextContent('All nuvarande data ersätts med exempeldata');
-    await user.click(within(dialog).getByRole('button', { name: 'Avbryt' }));
-    expect(useDataStore.getState().data.sections.map((section) => section.name)).toEqual(['Min sektion']);
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toContain('Exportera CSV');
+    for (const removed of ['Exportera JSON', 'Välj fil…', 'Ladda exempeldata', 'Radera all data']) {
+      expect(screen.queryByRole('button', { name: removed })).not.toBeInTheDocument();
+    }
   });
 
   it('kräver att en sektion skapas först', async () => {

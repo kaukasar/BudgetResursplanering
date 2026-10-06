@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { sumHours } from '../../domain/calc';
+import { sum } from '../../domain/calc';
 import type { Deviation, InitiativeComparison } from '../../domain/comparison';
-import { formatHours, formatSignedHours } from '../../domain/format';
+import { formatHours, formatSigned } from '../../domain/format';
 import { MONTHS } from '../../domain/types';
 import { MISSING } from '../labels';
 import { PersonCell, rateDetails } from './PersonCell';
@@ -51,7 +51,7 @@ export function CompareGrid({ year, comparison }: Props) {
         <tbody>
           {comparison.people.flatMap((row) => {
             const isExpanded = expandedPersonIds.has(row.person.id);
-            const estimateTotal = sumHours(row.estimate);
+            const estimateTotal = sum(row.estimate);
             const personRow = (
               <tr key={row.person.id}>
                 <PersonCell
@@ -146,8 +146,8 @@ function DeviationTotal({ deviation }: { deviation: Deviation }) {
   const directionClass = deviation.diff > 0 ? 'dev-up' : deviation.diff < 0 ? 'dev-down' : undefined;
   return (
     <td className="num total" title={DEVIATION_EXPLANATION}>
-      <span className={directionClass}>{formatSignedHours(deviation.diff)} h</span>
-      {deviation.percent !== null && <span className="dev">{formatSignedHours(Math.round(deviation.percent))} %</span>}
+      <span className={directionClass}>{formatSigned(deviation.diff)} h</span>
+      {deviation.percent !== null && <span className="dev">{formatSigned(deviation.percent)} %</span>}
     </td>
   );
 }

@@ -1,7 +1,7 @@
 import { DomainError, pruneEmptyLockedLinks } from './operations';
 import {
   EXTERNAL_STAFF_ID,
-  TAJMA_CLASSES,
+  isTajmaClass,
   type AppData,
   type Initiative,
   type Person,
@@ -13,20 +13,6 @@ import {
   type TimeMap,
   type TypeSettings,
 } from './types';
-
-export const EXPORT_FORMAT = 'ekonomi-budget';
-export const EXPORT_VERSION = 1;
-
-export interface ExportFile {
-  format: typeof EXPORT_FORMAT;
-  version: number;
-  exportedAt: string;
-  data: AppData;
-}
-
-export function toExportFile(data: AppData): ExportFile {
-  return { format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date().toISOString(), data };
-}
 
 /** Standardsektion som äldre data utan sektioner flyttas in i. */
 export const DEFAULT_SECTION: Section = { id: 'standardsektion', name: 'Standardsektion' };
@@ -47,7 +33,7 @@ const toWholeNumber = (value: number) => Math.round(value);
 const isMissing = (value: unknown) => value === null || value === undefined;
 
 function fail(message: string): never {
-  throw new DomainError(`Ogiltig fil: ${message}`);
+  throw new DomainError(`Ogiltig sparad data: ${message}`);
 }
 
 function requireString(value: unknown, what: string): string {
@@ -121,8 +107,8 @@ function parseBudget(value: unknown, initiativeName: string, what: string): numb
 /** Saknas i data från äldre versioner och tolkas då som "inget värde". */
 function parseTajmaClass(value: unknown, initiativeName: string): TajmaClass | null {
   if (isMissing(value)) return null;
-  if (!TAJMA_CLASSES.includes(value as TajmaClass)) fail(`initiativet "${initiativeName}" har en ogiltig tajmaklass.`);
-  return value as TajmaClass;
+  if (!isTajmaClass(value)) fail(`initiativet "${initiativeName}" har en ogiltig tajmaklass.`);
+  return value;
 }
 
 function parseInitiative(value: unknown): Initiative {
@@ -205,12 +191,11 @@ const isActualValue = (value: unknown): value is number | null => value === null
 // ---------------------------------------------------------------- Inläsning
 
 /**
- * Validerar okänd data (t.ex. en importerad fil eller sparad data) och returnerar en konsistent
- * AppData. Accepterar både en exportfil och ett rått AppData-objekt, även från äldre versioner.
+ * Validerar sparad data, som kan vara skadad eller från en äldre version, och returnerar en
+ * konsistent AppData.
  */
-export function parseAppData(input: unknown): AppData {
-  const raw = isRecord(input) && input.format === EXPORT_FORMAT ? input.data : input;
-  if (!isRecord(raw)) fail('filen innehåller ingen budgetdata.');
+export function parseAppData(raw: unknown): AppData {
+  if (!isRecord(raw)) fail('ingen budgetdata.');
   if (!isRecord(raw.settings)) fail('inställningar saknas.');
 
   const settings: Settings = {

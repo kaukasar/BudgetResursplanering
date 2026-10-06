@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { formatSek } from '../../domain/format';
+import { formatSek, nameWithLockReason } from '../../domain/format';
 import {
   EXTERNAL_STAFF_LABEL,
   isExternal,
@@ -8,7 +8,6 @@ import {
   type LockReason,
   type Worker,
 } from '../../domain/types';
-import { nameWithLockReason } from '../labels';
 
 /** "Konsult · 1 250 kr/h", eller för Extern personal "Extern · schablon 878 kr/h". */
 export function rateDetails(person: Worker, rate: number): string {

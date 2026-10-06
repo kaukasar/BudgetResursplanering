@@ -10,6 +10,9 @@ interface Props {
   disabled?: boolean;
 }
 
+/** Med en enda sektion förväljs den; annars måste användaren välja. */
+export const preselectedSectionId = (sections: readonly Section[]) => (sections.length === 1 ? sections[0]!.id : '');
+
 export function SectionSelect({ sections, value, onChange, label, disabled }: Props) {
   return (
     <select

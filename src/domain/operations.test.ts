@@ -10,7 +10,7 @@ import {
 } from './calc';
 import * as ops from './operations';
 import { DEFAULT_SECTION, parseAppData } from './serialization';
-import { emptyData, isEmptyData, type TajmaClass } from './types';
+import { emptyData, type TajmaClass } from './types';
 
 describe('heltal', () => {
   it('avvisar decimaler i timmar, timkostnad, arbetstid och budget', () => {
@@ -300,13 +300,5 @@ describe('tidsregistrering', () => {
     const snapshot = JSON.stringify(d);
     ops.setEstimate(d, 'i1', 'anna', 2026, 0, 10);
     expect(JSON.stringify(d)).toBe(snapshot);
-  });
-});
-
-describe('tom data', () => {
-  it('räknas som tom bara när varken sektioner, personal, produktägare eller initiativ finns', () => {
-    expect(isEmptyData(emptyData())).toBe(true);
-    expect(isEmptyData(ops.addSection(emptyData(), { id: 's', name: 'Sektion' }))).toBe(false);
-    expect(isEmptyData(domainFixture())).toBe(false);
   });
 });

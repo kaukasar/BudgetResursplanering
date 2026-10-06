@@ -1,4 +1,4 @@
-import { costByPart, summarizeInitiative, sumHours } from './calc';
+import { costByPart, summarizeInitiative, sum } from './calc';
 import { BUDGET_PARTS, budgetOf, type AppData, type BudgetPart, type Initiative, type Measure } from './types';
 
 export interface BudgetStatus {
@@ -26,7 +26,7 @@ export function calculateBudgetStatus(data: AppData, initiative: Initiative, par
   if (!budget || budget <= 0) return null;
 
   const costForAllYears = (measure: Measure) =>
-    sumHours(initiative.years.map((year) => costByPart(summarizeInitiative(data, initiative, year, measure))[part]));
+    sum(initiative.years.map((year) => costByPart(summarizeInitiative(data, initiative, year, measure))[part]));
   const percentOfBudget = (cost: number) => (cost / budget) * 100;
   const plannedCost = costForAllYears('estimate');
   const actualCost = costForAllYears('actual');

@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
+import { ErrorNotice } from '../../components/ErrorNotice';
 import { Modal } from '../../components/Modal';
-import { SectionSelect } from '../../components/SectionSelect';
+import { preselectedSectionId, SectionSelect } from '../../components/SectionSelect';
 import { initiativesForOwner } from '../../domain/operations';
 import { joinSorted, sortByName } from '../../domain/sorting';
 import type { ProductOwner } from '../../domain/types';
@@ -9,6 +10,7 @@ import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { MISSING, sectionName } from '../labels';
 import { MissingSectionNotice } from './MissingSectionNotice';
+import { RowActions, RowActionsHeader } from './RowActions';
 import { useAdminSort } from './useAdminSort';
 
 export function OwnersAdmin() {
@@ -25,8 +27,7 @@ export function OwnersAdmin() {
   const [blocked, setBlocked] = useState<ProductOwner | null>(null);
 
   const noSections = data.sections.length === 0;
-  // Med en enda sektion förväljs den.
-  const sectionForNew = newSectionId || (data.sections.length === 1 ? data.sections[0]!.id : '');
+  const sectionForNew = newSectionId || preselectedSectionId(data.sections);
   const initiativeNames = (owner: ProductOwner) =>
     joinSorted(initiativesForOwner(data, owner.id).map((initiative) => initiative.name));
   const { sortedRows: owners, sortHeader } = useAdminSort('owners', data.productOwners, {
@@ -98,9 +99,7 @@ export function OwnersAdmin() {
       {noSections && <MissingSectionNotice />}
       {addError && (
         <div className="card-body notice-row">
-          <div className="notice error" role="alert">
-            {addError}
-          </div>
+          <ErrorNotice>{addError}</ErrorNotice>
         </div>
       )}
 
@@ -114,9 +113,7 @@ export function OwnersAdmin() {
                 {sortHeader('name', 'Namn')}
                 {sortHeader('section', 'Sektion')}
                 {sortHeader('initiatives', 'Initiativ')}
-                <th>
-                  <span className="sr-only">Åtgärder</span>
-                </th>
+                <RowActionsHeader />
               </tr>
             </thead>
             <tbody>
@@ -127,19 +124,11 @@ export function OwnersAdmin() {
                   </td>
                   <td>{sectionName(data, owner.sectionId)}</td>
                   <td className="small">{initiativeNames(owner) || <span className="muted">{MISSING}</span>}</td>
-                  <td className="actions">
-                    <button type="button" className="link-btn" disabled={!canEdit} onClick={() => setEditing(owner)}>
-                      Redigera
-                    </button>
-                    <button
-                      type="button"
-                      className="link-btn danger"
-                      disabled={!canEdit}
-                      onClick={() => void remove(owner)}
-                    >
-                      Radera
-                    </button>
-                  </td>
+                  <RowActions
+                    disabled={!canEdit}
+                    onEdit={() => setEditing(owner)}
+                    onDelete={() => void remove(owner)}
+                  />
                 </tr>
               ))}
             </tbody>
@@ -202,18 +191,14 @@ function EditOwnerDialog({ owner, onClose }: { owner: ProductOwner; onClose: () 
         </label>
         {mustReassign && (
           <>
-            <div className="notice error" role="alert">
+            <ErrorNotice>
               Initiativen stannar i {sectionName(data, owner.sectionId)} med sin personal. Ge varje initiativ en ny
               produktägare i {sectionName(data, owner.sectionId)} innan {owner.name} kan byta sektion.
-            </div>
+            </ErrorNotice>
             <ReassignInitiatives owner={owner} />
           </>
         )}
-        {error && (
-          <div className="notice error" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
       </form>
     </Modal>
   );
@@ -251,10 +236,10 @@ function BlockedDeleteDialog({ owner, onClose }: { owner: ProductOwner; onClose:
     >
       {hasInitiatives ? (
         <>
-          <div className="notice error" role="alert">
+          <ErrorNotice>
             <strong>{owner.name}</strong> har initiativ som först måste få en ny produktägare i{' '}
             {sectionName(data, owner.sectionId)}.
-          </div>
+          </ErrorNotice>
           <ReassignInitiatives owner={owner} />
         </>
       ) : (

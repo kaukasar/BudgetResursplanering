@@ -1,11 +1,9 @@
 import { useId, useState } from 'react';
 import { activePeople, externalHourlyRate, hasExternalStaff } from '../../domain/calc';
 import { formatInputNumber, formatSek, parseWholeNumber, plural } from '../../domain/format';
-import { EXTERNAL_STAFF, PERSON_TYPE_LABEL, type PersonType } from '../../domain/types';
+import { EXTERNAL_STAFF, PERSON_TYPE_LABEL, PERSON_TYPES } from '../../domain/types';
 import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
-
-const PERSON_TYPES = Object.keys(PERSON_TYPE_LABEL) as PersonType[];
 
 export function SettingsAdmin() {
   const data = useDataStore((state) => state.data);

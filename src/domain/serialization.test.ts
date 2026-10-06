@@ -2,18 +2,18 @@
 import { describe, expect, it } from 'vitest';
 import { domainFixture } from '../test/domainFixture';
 import * as ops from './operations';
-import { parseAppData, toExportFile } from './serialization';
+import { parseAppData } from './serialization';
 
-describe('export/import', () => {
+describe('inläsning av sparad data', () => {
   it('klarar en rundtur via JSON', () => {
     let d = domainFixture();
     d = ops.setEstimate(d, 'i1', 'anna', 2026, 0, 10);
-    const roundTrip = parseAppData(JSON.parse(JSON.stringify(toExportFile(d))));
+    const roundTrip = parseAppData(JSON.parse(JSON.stringify(d)));
     expect(roundTrip).toEqual(d);
   });
 
   it('avvisar trasig data med begripligt fel', () => {
-    expect(() => parseAppData({ foo: 1 })).toThrow(/Ogiltig fil/);
+    expect(() => parseAppData({ foo: 1 })).toThrow(/Ogiltig sparad data/);
     const d = domainFixture();
     const broken = { ...d, initiatives: [{ ...d.initiatives[0]!, productOwnerId: 'okänd' }] };
     expect(() => parseAppData(broken)).toThrow(/okänd produktägare/);
@@ -64,11 +64,5 @@ describe('äldre format', () => {
     // En budget som avrundas till 0 är inte längre giltig.
     const tinyBudget = { ...d, initiatives: d.initiatives.map((i) => ({ ...i, internalBudget: 0.4 })) };
     expect(() => parseAppData(tinyBudget)).toThrow(/budget/);
-  });
-
-  it('sparar alltid under det nya namnet "estimates"', () => {
-    const exported = JSON.parse(JSON.stringify(toExportFile(domainFixture()))) as { data: object };
-    expect(Object.keys(exported.data)).toContain('estimates');
-    expect(Object.keys(exported.data)).not.toContain('hours');
   });
 });

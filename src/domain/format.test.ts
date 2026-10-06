@@ -5,7 +5,7 @@ import {
   formatInputNumber,
   formatPercent,
   formatSek,
-  formatSignedHours,
+  formatSigned,
   listText,
   parseWholeNumber,
 } from './format';
@@ -30,9 +30,9 @@ describe('format', () => {
     expect(formatSek(1234567.8)).toBe('1 234 568 kr');
     expect(formatPercent(87.49)).toBe('87 %');
     expect(formatPercent(100.5)).toBe('101 %');
-    expect(formatSignedHours(4)).toBe('+4');
-    expect(formatSignedHours(-8.6)).toBe('−9');
-    expect(formatSignedHours(0.4)).toBe('±0');
+    expect(formatSigned(4)).toBe('+4');
+    expect(formatSigned(-8.6)).toBe('−9');
+    expect(formatSigned(0.4)).toBe('±0');
     expect(formatInputNumber(625)).toBe('625');
     expect(formatInputNumber(null)).toBe('');
   });

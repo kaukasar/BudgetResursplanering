@@ -7,6 +7,7 @@ import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { MISSING, ownerName, personName, sectionName } from '../labels';
 import { InitiativeForm } from './InitiativeForm';
+import { RowActions, RowActionsHeader } from './RowActions';
 import { useAdminSort } from './useAdminSort';
 import { useConfirmDeleteInitiative } from './useConfirmDeleteInitiative';
 
@@ -18,6 +19,9 @@ function missingPrerequisites(data: AppData): string[] {
     activePeople(data).length === 0 && 'personal',
   ].filter((text): text is string => Boolean(text));
 }
+
+/** Sorterar på första året och därefter sista året, så att 2026 kommer före 2026–2027. */
+const firstThenLastYear = (initiative: Initiative) => initiative.years[0]! * 10_000 + initiative.years.at(-1)!;
 
 export function InitiativesAdmin() {
   const data = useDataStore((state) => state.data);
@@ -36,8 +40,7 @@ export function InitiativesAdmin() {
       section: (initiative) => sectionName(data, initiativeSectionId(data, initiative)),
       owner: (initiative) => ownerName(data, initiative.productOwnerId),
       tajma: (initiative) => initiative.tajmaClass ?? null,
-      // Första året avgör, därefter sista året (t.ex. 2026 före 2026–2027).
-      years: (initiative) => initiative.years[0]! * 10_000 + initiative.years.at(-1)!,
+      years: firstThenLastYear,
       people: personNames,
       internalBudget: (initiative) => initiative.internalBudget ?? null,
       externalBudget: (initiative) => initiative.externalBudget ?? null,
@@ -101,9 +104,7 @@ export function InitiativesAdmin() {
                 {sortHeader('people', 'Personal')}
                 {sortHeader('internalBudget', 'Intern budget', 'num')}
                 {sortHeader('externalBudget', 'Extern budget', 'num')}
-                <th>
-                  <span className="sr-only">Åtgärder</span>
-                </th>
+                <RowActionsHeader />
               </tr>
             </thead>
             <tbody>
@@ -119,24 +120,11 @@ export function InitiativesAdmin() {
                   <td className="small">{personNames(initiative) || <span className="muted">Ingen personal</span>}</td>
                   <BudgetCell budget={initiative.internalBudget} />
                   <BudgetCell budget={initiative.externalBudget} />
-                  <td className="actions">
-                    <button
-                      type="button"
-                      className="link-btn"
-                      disabled={!canEdit}
-                      onClick={() => setEditing(initiative)}
-                    >
-                      Redigera
-                    </button>
-                    <button
-                      type="button"
-                      className="link-btn danger"
-                      disabled={!canEdit}
-                      onClick={() => void confirmDeleteInitiative(initiative)}
-                    >
-                      Radera
-                    </button>
-                  </td>
+                  <RowActions
+                    disabled={!canEdit}
+                    onEdit={() => setEditing(initiative)}
+                    onDelete={() => void confirmDeleteInitiative(initiative)}
+                  />
                 </tr>
               ))}
             </tbody>

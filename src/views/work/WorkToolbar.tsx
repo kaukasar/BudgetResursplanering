@@ -1,6 +1,13 @@
-import { ALL_TAJMA_CLASSES, NO_TAJMA_CLASS, type TajmaClassFilter } from '../../domain/calc';
+import {
+  ALL_OWNERS,
+  ALL_SECTIONS,
+  ALL_TAJMA_CLASSES,
+  NO_TAJMA_CLASS,
+  type InitiativeFilter,
+  type TajmaClassFilter,
+} from '../../domain/filter';
 import { TAJMA_CLASSES, type ProductOwner, type Section } from '../../domain/types';
-import { ALL_OWNERS, ALL_SECTIONS, useUiStore, type WorkView } from '../../store/ui';
+import { useUiStore, type WorkView } from '../../store/ui';
 import { VIEW_LABEL } from './workViews';
 
 interface Props {
@@ -8,15 +15,14 @@ interface Props {
   sections: Section[];
   /** Produktägare i vald sektion. */
   owners: ProductOwner[];
-  /** Vald sektion, produktägare och tajmaklass efter kontroll att de finns kvar (annars "alla"). */
-  sectionId: string;
-  ownerId: string;
-  tajmaClass: TajmaClassFilter;
+  /** Valt filter efter kontroll att valen finns kvar (annars "alla"). */
+  filter: InitiativeFilter;
 }
 
 /** Filter för år, sektion, produktägare och tajmaklass samt val av vy (estimat, utfall, jämförelse). */
-export function WorkToolbar({ years, sections, owners, sectionId, ownerId, tajmaClass }: Props) {
-  const { year, setYear, setSectionId, setOwnerId, setTajmaClass, view, setView } = useUiStore();
+export function WorkToolbar({ years, sections, owners, filter }: Props) {
+  const { year, sectionId, ownerId, tajmaClass } = filter;
+  const { setYear, setSectionId, setOwnerId, setTajmaClass, view, setView } = useUiStore();
   const selectedSection = sections.find((section) => section.id === sectionId);
 
   return (

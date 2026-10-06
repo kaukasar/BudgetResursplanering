@@ -123,8 +123,8 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Överst i adminläget finns en växel som slår på respektive av möjligheten att ändra data. Knappen består endast av en låsikon: låst (🔒) när redigering är avstängd och öppen (🔓) när den är påslagen.
 * **Standard är avstängd.** Varje ny webbläsarflik startar med redigering avstängd.
 * Slås redigering på gäller det så länge sessionen pågår, dvs. **per webbläsarflik**: valet överlever att sidan laddas om men inte att fliken stängs.
-* När redigering är avstängd är allt som ändrar data låst: skapa, redigera och radera sektioner, personal, produktägare och initiativ (inklusive att flytta innehåll mellan sektioner), standardvärdena under Inställningar, samt import av JSON, Ladda exempeldata och Radera all data under fliken Data. Knapparna syns men är avstängda (utan förklarande ledtext), och fälten under Inställningar är skrivskyddade.
-* Det som bara läser data är alltid öppet: listor, sortering, filter och export av JSON och CSV.
+* När redigering är avstängd är allt som ändrar data låst: skapa, redigera och radera sektioner, personal, produktägare och initiativ (inklusive att flytta innehåll mellan sektioner) samt standardvärdena under Inställningar. Knapparna syns men är avstängda (utan förklarande ledtext), och fälten under Inställningar är skrivskyddade.
+* Det som bara läser data är alltid öppet: listor, sortering, filter och export till Excel (CSV) under fliken Export.
 * När redigering är påslagen markeras adminläget med en färgad list, så att det är tydligt att data kan ändras.
 * Spärren gäller endast adminläget. Inmatning av estimat och utfall i arbetsläget påverkas inte.
 * Spärren är ett skydd mot misstag, inte en behörighetskontroll (se 6, Säkerhet).
@@ -192,9 +192,10 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Ett initiativ ska kunna raderas oavsett vilken information eller vilka timmar som finns kopplade till det.
 * När personal (inklusive Extern personal) eller år tas bort från ett initiativ, eller när initiativet raderas, raderas både estimat och utfall, även låst tid. Bekräftelsedialogen visar hur många timmar av vardera som försvinner. (När personal raderas raderas däremot ingen tid, se 3.2 och 2.8.)
 
-### 3.5 Datahantering (fliken Data)
+### 3.5 Export (fliken Export)
 
-* **Export/import (JSON):** All data och alla inställningar kan exporteras till en JSON-fil och importeras igen (för backup och för att flytta data mellan webbläsare/personer). Import ersätter all befintlig data efter bekräftelse.
+Fliken Export innehåller endast export till Excel. Det går inte att exportera eller importera data som JSON, att ladda exempeldata eller att radera all data på en gång.
+
 * **Export för Excel (CSV):** Platt analysfil avsedd för t.ex. pivottabeller i Excel.
 * En rad per initiativ, person, år och månad. Alla kopplade personer och initiativets alla år tas med, även månader med 0 timmar.
 * Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (nuvarande sektion), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
@@ -330,5 +331,5 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 * **Gränssnitt (UI):** Enkelt, funktionellt, reaktivt UI så att summo- och kostnadsberäkningar uppdateras direkt vid inmatning utan att sidan laddas om.
 * **Tillstånd & Lagring:** Enkel och direkt lagring, någon form av localstorage. Applikationen kommer att hantera en liten datamängd och skall ej ha någon databas eller backend. Informationen som matas in i applikationen måste lagras persistent.
-* **Bakåtkompatibilitet:** Data från tidigare versioner utan sektioner (sparad data eller importerad fil) flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde. Decimaltal i äldre data (timmar, timkostnad, arbetstid och budget) avrundas till närmaste heltal vid inläsning och import. En budget från tidigare versioner, som bara hade en budget, blir **intern budget**; den externa budgeten lämnas tom.
+* **Bakåtkompatibilitet:** Sparad data från tidigare versioner utan sektioner flyttas automatiskt in i en sektion med namnet "Standardsektion", som sedan kan döpas om. Data utan utfall läses in med tomt utfall, och initiativ utan tajmaklass får tomt värde. Decimaltal i äldre data (timmar, timkostnad, arbetstid och budget) avrundas till närmaste heltal vid inläsning. En budget från tidigare versioner, som bara hade en budget, blir **intern budget**; den externa budgeten lämnas tom.
 * **Säkerhet** Ingen inloggning eller autentisering. Alla som har länken ska kunna utnyttja alla features. Redigeringsspärren i adminläget (3) skyddar endast mot oavsiktliga ändringar; vem som helst kan slå på redigering.

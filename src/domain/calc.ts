@@ -2,7 +2,6 @@ import {
   EXTERNAL_STAFF,
   EXTERNAL_STAFF_ID,
   isExternal,
-  TAJMA_CLASSES,
   type AppData,
   type Initiative,
   type LockReason,
@@ -11,7 +10,6 @@ import {
   type MonthHours,
   type Person,
   type Settings,
-  type TajmaClass,
   type TimeMap,
   type Worker,
 } from './types';
@@ -19,8 +17,8 @@ import {
 export const zeroMonths = (): MonthHours => Array<number>(12).fill(0);
 export const emptyActuals = (): MonthActuals => Array<number | null>(12).fill(null);
 
-/** Summerar timmar; `null` (ej rapporterat utfall) räknas som 0. */
-export const sumHours = (values: readonly (number | null)[]) =>
+/** Summerar timmar, kostnader eller antal. `null` (ej rapporterat utfall) räknas som 0. */
+export const sum = (values: readonly (number | null)[]) =>
   values.reduce<number>((total, value) => total + (value ?? 0), 0);
 
 // ---------------------------------------------------------------- Timkostnad och arbetstid
@@ -97,7 +95,7 @@ export function summarizeInitiative(
   const rows = linkedPeople(data, initiative).map((person): InitiativeRow => {
     const months = getMonthValues(data, initiative.id, person.id, year, measure);
     const rate = effectiveRate(person, data.settings);
-    const totalHours = sumHours(months);
+    const totalHours = sum(months);
     return {
       person,
       lockReason: lockReason(data, initiative, person),
@@ -109,9 +107,9 @@ export function summarizeInitiative(
   });
   return {
     rows,
-    monthTotals: zeroMonths().map((_, month) => sumHours(rows.map((row) => row.months[month]!))),
-    totalHours: sumHours(rows.map((row) => row.totalHours)),
-    totalCost: sumHours(rows.map((row) => row.totalCost)),
+    monthTotals: zeroMonths().map((_, month) => sum(rows.map((row) => row.months[month]!))),
+    totalHours: sum(rows.map((row) => row.totalHours)),
+    totalCost: sum(rows.map((row) => row.totalCost)),
   };
 }
 
@@ -125,7 +123,7 @@ export interface CostByPart {
 /** Kostnaden i en sammanställning, uppdelad på intern personal och Extern personal. */
 export function costByPart(summary: InitiativeSummary): CostByPart {
   const costOf = (external: boolean) =>
-    sumHours(summary.rows.filter((row) => isExternal(row.person) === external).map((row) => row.totalCost));
+    sum(summary.rows.filter((row) => isExternal(row.person) === external).map((row) => row.totalCost));
   return { internal: costOf(false), external: costOf(true) };
 }
 
@@ -141,13 +139,21 @@ export const hasExternalStaff = (initiative: Initiative) => initiative.personIds
 /** Kopplad personal utom Extern personal. */
 export const regularPersonIds = (personIds: readonly string[]) => personIds.filter((id) => id !== EXTERNAL_STAFF_ID);
 
+export function ownerSectionId(data: AppData, ownerId: string): string | undefined {
+  return data.productOwners.find((owner) => owner.id === ownerId)?.sectionId;
+}
+
 /** Ett initiativs sektion är dess produktägares sektion. */
 export function initiativeSectionId(data: AppData, initiative: Initiative): string | undefined {
-  return data.productOwners.find((owner) => owner.id === initiative.productOwnerId)?.sectionId;
+  return ownerSectionId(data, initiative.productOwnerId);
 }
 
 /** Personal som inte är raderad. */
 export const activePeople = (data: AppData): Person[] => data.people.filter((person) => !person.deleted);
+
+/** Personal som kan kopplas till initiativ i sektionen. */
+export const activePeopleInSection = (data: AppData, sectionId: string | undefined): Person[] =>
+  activePeople(data).filter((person) => person.sectionId === sectionId);
 
 /**
  * Varför tiden på initiativet är låst för personen, eller `null` om den kan ändras. Personal kan
@@ -165,46 +171,6 @@ export function lockedPersonIds(data: AppData, initiative: Initiative): string[]
   return linkedPeople(data, initiative)
     .filter((worker) => lockReason(data, initiative, worker) !== null)
     .map((worker) => worker.id);
-}
-
-/** Filter på tajmaklass: alla initiativ, en viss tajmaklass eller initiativ utan tajmaklass. */
-export const ALL_TAJMA_CLASSES = '';
-export const NO_TAJMA_CLASS = 'none';
-export type TajmaClassFilter = typeof ALL_TAJMA_CLASSES | typeof NO_TAJMA_CLASS | TajmaClass;
-
-export const isTajmaClassFilter = (value: unknown): value is TajmaClassFilter =>
-  value === ALL_TAJMA_CLASSES || value === NO_TAJMA_CLASS || TAJMA_CLASSES.includes(value as TajmaClass);
-
-export interface InitiativeFilter {
-  year: number;
-  /** Tom sträng = alla sektioner. */
-  sectionId: string;
-  /** Tom sträng = alla produktägare. */
-  ownerId: string;
-  /** Utelämnat = alla tajmaklasser. */
-  tajmaClass?: TajmaClassFilter;
-}
-
-function matchesTajmaClass(initiative: Initiative, filter: TajmaClassFilter): boolean {
-  if (filter === ALL_TAJMA_CLASSES) return true;
-  if (filter === NO_TAJMA_CLASS) return !initiative.tajmaClass;
-  return initiative.tajmaClass === filter;
-}
-
-/** Initiativ som gäller året och, om angivet, tillhör sektionen och produktägaren och har tajmaklassen. */
-export function filterInitiatives(data: AppData, filter: InitiativeFilter): Initiative[] {
-  return data.initiatives.filter(
-    (initiative) =>
-      initiative.years.includes(filter.year) &&
-      (!filter.sectionId || initiativeSectionId(data, initiative) === filter.sectionId) &&
-      (!filter.ownerId || initiative.productOwnerId === filter.ownerId) &&
-      matchesTajmaClass(initiative, filter.tajmaClass ?? ALL_TAJMA_CLASSES),
-  );
-}
-
-/** Samtliga år som förekommer på något initiativ, stigande. */
-export function allInitiativeYears(data: AppData): number[] {
-  return [...new Set(data.initiatives.flatMap((initiative) => initiative.years))].sort((a, b) => a - b);
 }
 
 // ---------------------------------------------------------------- Kapacitet
@@ -254,13 +220,13 @@ export function storedHoursForPersonInInitiative(
   measure: Measure = 'estimate',
 ): number {
   const byYear = timeMapFor(data, measure)[initiativeId]?.[personId] ?? {};
-  return sumHours(Object.values(byYear).map(sumHours));
+  return sum(Object.values(byYear).map(sum));
 }
 
 /** Summa av alla lagrade timmar i ett initiativ, alla personer och år. */
 export function storedHoursForInitiative(data: AppData, initiativeId: string, measure: Measure = 'estimate'): number {
   const personIds = Object.keys(timeMapFor(data, measure)[initiativeId] ?? {});
-  return sumHours(personIds.map((id) => storedHoursForPersonInInitiative(data, initiativeId, id, measure)));
+  return sum(personIds.map((id) => storedHoursForPersonInInitiative(data, initiativeId, id, measure)));
 }
 
 export interface StoredHours {
@@ -268,14 +234,22 @@ export interface StoredHours {
   actual: number;
 }
 
+/** Lagrade estimat- och utfallstimmar för en person i ett initiativ, alla år. */
+export function storedEstimateAndActual(data: AppData, initiativeId: string, personId: string): StoredHours {
+  return {
+    estimate: storedHoursForPersonInInitiative(data, initiativeId, personId, 'estimate'),
+    actual: storedHoursForPersonInInitiative(data, initiativeId, personId, 'actual'),
+  };
+}
+
+export const hasStoredHours = (hours: StoredHours) => hours.estimate > 0 || hours.actual > 0;
+
 export interface HoursLoss {
   /** Borttagna personer med lagrade timmar (alla år). */
   people: ({ personId: string } & StoredHours)[];
   /** Borttagna år med lagrade timmar för personer som finns kvar i initiativet. */
   years: ({ year: number } & StoredHours)[];
 }
-
-const hasHours = (hours: StoredHours) => hours.estimate > 0 || hours.actual > 0;
 
 /** Vilka timmar skulle raderas om initiativet fick nya personer och år? */
 export function hoursLostByUpdate(
@@ -285,20 +259,16 @@ export function hoursLostByUpdate(
 ): HoursLoss {
   const keptPersonIds = initiative.personIds.filter((id) => next.personIds.includes(id));
   const yearHours = (map: TimeMap<number | null>, year: number) =>
-    sumHours(keptPersonIds.map((id) => sumHours(map[initiative.id]?.[id]?.[year] ?? [])));
+    sum(keptPersonIds.map((id) => sum(map[initiative.id]?.[id]?.[year] ?? [])));
 
   const people = initiative.personIds
     .filter((id) => !next.personIds.includes(id))
-    .map((personId) => ({
-      personId,
-      estimate: storedHoursForPersonInInitiative(data, initiative.id, personId, 'estimate'),
-      actual: storedHoursForPersonInInitiative(data, initiative.id, personId, 'actual'),
-    }))
-    .filter(hasHours);
+    .map((personId) => ({ personId, ...storedEstimateAndActual(data, initiative.id, personId) }))
+    .filter(hasStoredHours);
   const years = initiative.years
     .filter((year) => !next.years.includes(year))
     .map((year) => ({ year, estimate: yearHours(data.estimates, year), actual: yearHours(data.actuals, year) }))
-    .filter(hasHours);
+    .filter(hasStoredHours);
   return { people, years };
 }
 

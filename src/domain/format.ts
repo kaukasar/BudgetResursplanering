@@ -1,3 +1,6 @@
+import type { StoredHours } from './calc';
+import { isExternal, LOCK_REASON_LABEL, type LockReason, type Worker } from './types';
+
 /** Appen hanterar bara heltal. Beräknade värden med decimaler avrundas till närmaste heltal vid visning. */
 const wholeNumberFormat = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
 
@@ -20,6 +23,14 @@ export function listText(names: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} och ${names.at(-1)}`;
 }
 
+/** "Anna Andersson (bytt sektion)" – visar varför personens tid är låst. */
+export const nameWithLockReason = (name: string, reason: LockReason | null) =>
+  reason ? `${name} (${LOCK_REASON_LABEL[reason]})` : name;
+
+/** Raderad personal märks, så att den går att skilja från en ny person med samma namn. */
+export const workerDisplayName = (worker: Worker) =>
+  nameWithLockReason(worker.name, !isExternal(worker) && worker.deleted ? 'deleted' : null);
+
 /** Heltal med tusentalsavgränsare, avrundat till närmaste heltal. */
 const formatWholeNumber = (value: number) => withPlainSpaces(wholeNumberFormat.format(value));
 
@@ -27,11 +38,11 @@ export const formatHours = formatWholeNumber;
 export const formatSek = (sek: number) => `${formatWholeNumber(sek)} kr`;
 export const formatPercent = (percent: number) => `${formatWholeNumber(percent)} %`;
 
-/** Avvikelse med tecken: "+4", "−9", "±0". Avrundas först, så att t.ex. 0,4 visas som "±0". */
-export function formatSignedHours(hours: number): string {
-  const rounded = Math.round(hours);
+/** Avvikelse i timmar eller procent med tecken: "+4", "−9", "±0". Avrundas först, så att 0,4 blir "±0". */
+export function formatSigned(value: number): string {
+  const rounded = Math.round(value);
   if (rounded === 0) return '±0';
-  return `${rounded > 0 ? '+' : '−'}${formatHours(Math.abs(rounded))}`;
+  return `${rounded > 0 ? '+' : '−'}${formatWholeNumber(Math.abs(rounded))}`;
 }
 
 /** Värde i ett inmatningsfält: heltal utan tusentalsavgränsare. `null` = tomt fält. */
@@ -47,7 +58,7 @@ export function hoursLossText(estimate: number, actual: number): string | null {
 }
 
 /** "40 h estimat, 12 h utfall" – för listor över vad som påverkas. */
-export function hoursPairText(estimate: number, actual: number): string {
+export function hoursPairText({ estimate, actual }: StoredHours): string {
   return [estimate > 0 && `${formatHours(estimate)} h estimat`, actual > 0 && `${formatHours(actual)} h utfall`]
     .filter(Boolean)
     .join(', ');

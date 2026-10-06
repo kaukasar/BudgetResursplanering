@@ -5,6 +5,8 @@ export const PERSON_TYPE_LABEL: Record<PersonType, string> = {
   consultant: 'Konsult',
 };
 
+export const PERSON_TYPES = Object.keys(PERSON_TYPE_LABEL) as PersonType[];
+
 export interface TypeSettings {
   /** Timkostnad i SEK/h. */
   hourlyRate: number;
@@ -24,7 +26,7 @@ export interface Person {
   id: string;
   name: string;
   type: PersonType;
-  /** Hemsektion. Personen kan ändå kopplas till initiativ i andra sektioner. */
+  /** Personen kan bara kopplas till initiativ i sin egen sektion. */
   sectionId: string;
   /** Egen timkostnad. `null` = ärv från typens globala inställning. */
   hourlyRate: number | null;
@@ -100,6 +102,8 @@ export const budgetOf = (initiative: Initiative, part: BudgetPart): number | nul
 export const TAJMA_CLASSES = ['IMM', 'Vidareutveckling', 'Drift'] as const;
 export type TajmaClass = (typeof TAJMA_CLASSES)[number];
 
+export const isTajmaClass = (value: unknown): value is TajmaClass => TAJMA_CLASSES.includes(value as TajmaClass);
+
 export interface Initiative {
   id: string;
   name: string;
@@ -169,8 +173,4 @@ export function emptyData(): AppData {
     estimates: {},
     actuals: {},
   };
-}
-
-export function isEmptyData(data: AppData): boolean {
-  return [data.sections, data.people, data.productOwners, data.initiatives].every((list) => list.length === 0);
 }

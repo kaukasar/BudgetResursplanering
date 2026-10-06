@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { ALL_TAJMA_CLASSES, type TajmaClassFilter } from '../domain/calc';
+import { ALL_OWNERS, ALL_SECTIONS, ALL_TAJMA_CLASSES, type TajmaClassFilter } from '../domain/filter';
 import { nextSort, type SortState } from '../domain/sorting';
 
 export type Mode = 'work' | 'admin';
 /** Vad arbetsläget visar och låter användaren mata in. */
 export type WorkView = 'estimate' | 'actual' | 'compare';
 
-export type AdminTab = 'sections' | 'people' | 'owners' | 'initiatives' | 'settings' | 'data';
+export type AdminTab = 'sections' | 'people' | 'owners' | 'initiatives' | 'settings' | 'export';
 
 /** Flikar i adminläget med sorterbara kolumner. */
 export type SortableTab = 'sections' | 'people' | 'owners' | 'initiatives';
@@ -18,10 +18,6 @@ export const DEFAULT_ADMIN_SORT: Record<SortableTab, SortState> = {
   owners: { key: 'name', direction: 'asc' },
   initiatives: { key: 'name', direction: 'asc' },
 };
-
-/** Värdet för "alla" i sektions- och produktägarväljarna. */
-export const ALL_SECTIONS = '';
-export const ALL_OWNERS = '';
 
 interface UiState {
   mode: Mode;
@@ -51,15 +47,15 @@ export const useUiStore = create<UiState>()(
       mode: 'work',
       adminTab: 'sections',
       adminSort: DEFAULT_ADMIN_SORT,
-      year: new Date().getFullYear(),
       view: 'estimate',
+      year: new Date().getFullYear(),
       sectionId: ALL_SECTIONS,
       ownerId: ALL_OWNERS,
       tajmaClass: ALL_TAJMA_CLASSES,
       setMode: (mode) => set({ mode }),
       setAdminTab: (adminTab) => set({ adminTab }),
       sortAdminBy: (tab, key) =>
-        set((s) => ({ adminSort: { ...s.adminSort, [tab]: nextSort(s.adminSort[tab], key) } })),
+        set((state) => ({ adminSort: { ...state.adminSort, [tab]: nextSort(state.adminSort[tab], key) } })),
       setYear: (year) => set({ year }),
       setView: (view) => set({ view }),
       setSectionId: (sectionId) => set({ sectionId }),
@@ -68,10 +64,16 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'ekonomi.ui',
-      // Version 2: sorteringen sparas som { key, direction } per flik (tidigare bara riktning).
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
-      migrate: (persisted) => ({ ...(persisted as object), adminSort: DEFAULT_ADMIN_SORT }),
+      migrate: (persisted, version) => {
+        const state = { ...(persisted as Record<string, unknown>) };
+        // Version 2: sorteringen sparas som { key, direction } per flik (tidigare bara riktning).
+        if (version < 2) state.adminSort = DEFAULT_ADMIN_SORT;
+        // Version 3: fliken Data heter Export.
+        if (state.adminTab === 'data') state.adminTab = 'export';
+        return state;
+      },
     },
   ),
 );

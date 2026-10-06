@@ -1,12 +1,4 @@
-import {
-  effectiveRate,
-  getMonthActuals,
-  getMonthEstimates,
-  linkedPeople,
-  lockReason,
-  sumHours,
-  zeroMonths,
-} from './calc';
+import { effectiveRate, getMonthActuals, getMonthEstimates, linkedPeople, lockReason, sum, zeroMonths } from './calc';
 import type { AppData, Initiative, LockReason, MonthActuals, MonthHours, Worker } from './types';
 
 /**
@@ -33,17 +25,17 @@ function toDeviation(estimate: number, actual: number, reportedMonths: number): 
 export function calculateDeviation(estimate: readonly number[], actual: readonly (number | null)[]): Deviation {
   const reported = actual.flatMap((value, month) => (value === null ? [] : [{ value, month }]));
   return toDeviation(
-    sumHours(reported.map(({ month }) => estimate[month] ?? 0)),
-    sumHours(reported.map(({ value }) => value)),
+    sum(reported.map(({ month }) => estimate[month] ?? 0)),
+    sum(reported.map(({ value }) => value)),
     reported.length,
   );
 }
 
 export function sumDeviations(deviations: readonly Deviation[]): Deviation {
   return toDeviation(
-    sumHours(deviations.map((d) => d.estimate)),
-    sumHours(deviations.map((d) => d.actual)),
-    sumHours(deviations.map((d) => d.reportedMonths)),
+    sum(deviations.map((d) => d.estimate)),
+    sum(deviations.map((d) => d.actual)),
+    sum(deviations.map((d) => d.reportedMonths)),
   );
 }
 
@@ -92,16 +84,16 @@ export function compareInitiative(data: AppData, initiative: Initiative, year: n
   const months = zeroMonths().map((_, month): MonthComparison => {
     const reporters = people.filter((row) => row.actual[month] !== null);
     return {
-      estimate: sumHours(people.map((row) => row.estimate[month]!)),
-      reportedEstimate: sumHours(reporters.map((row) => row.estimate[month]!)),
-      actual: reporters.length > 0 ? sumHours(reporters.map((row) => row.actual[month]!)) : null,
+      estimate: sum(people.map((row) => row.estimate[month]!)),
+      reportedEstimate: sum(reporters.map((row) => row.estimate[month]!)),
+      actual: reporters.length > 0 ? sum(reporters.map((row) => row.actual[month]!)) : null,
     };
   });
 
   return {
     people,
     months,
-    estimateTotal: sumHours(months.map((month) => month.estimate)),
+    estimateTotal: sum(months.map((month) => month.estimate)),
     deviation: sumDeviations(people.map((row) => row.deviation)),
   };
 }

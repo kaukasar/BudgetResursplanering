@@ -1,4 +1,4 @@
-import { countOverallocatedMonths, personCapacity, sumHours } from '../../domain/calc';
+import { countOverallocatedMonths, personCapacity, sum } from '../../domain/calc';
 import { formatHours, plural } from '../../domain/format';
 import { MONTHS, MONTHS_LONG, PERSON_TYPE_LABEL, type AppData, type Measure, type Person } from '../../domain/types';
 import { PersonCell } from './PersonCell';
@@ -20,7 +20,7 @@ export function CapacityOverview({ data, people, year, measure }: Props) {
   if (people.length === 0) return null;
 
   const rows = people.map((person) => ({ person, ...personCapacity(data, person, year, measure) }));
-  const overallocatedCount = rows.reduce((count, row) => count + countOverallocatedMonths(row), 0);
+  const overallocatedCount = sum(rows.map((row) => countOverallocatedMonths(row)));
 
   return (
     <details className="card capacity" open>
@@ -71,7 +71,7 @@ export function CapacityOverview({ data, people, year, measure }: Props) {
                     <span>{formatHours(total)}</span>
                   </td>
                 ))}
-                <td className="num total">{formatHours(sumHours(monthTotals))}</td>
+                <td className="num total">{formatHours(sum(monthTotals))}</td>
                 <td className="num cost">{formatHours(capacity * 12)}</td>
               </tr>
             ))}

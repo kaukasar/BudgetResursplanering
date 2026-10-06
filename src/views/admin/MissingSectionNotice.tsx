@@ -2,7 +2,7 @@ import { useUiStore } from '../../store/ui';
 
 /** Visas när det saknas sektioner – sektionen måste skapas först av allt. */
 export function MissingSectionNotice() {
-  const setAdminTab = useUiStore((s) => s.setAdminTab);
+  const setAdminTab = useUiStore((state) => state.setAdminTab);
   return (
     <div className="card-body">
       <div className="notice">

@@ -1,5 +1,5 @@
 import { KeyFigure } from '../../components/KeyFigure';
-import { countOverallocatedMonths, personCapacity, summarizeInitiative } from '../../domain/calc';
+import { countOverallocatedMonths, personCapacity, sum, summarizeInitiative } from '../../domain/calc';
 import { formatHours, formatSek } from '../../domain/format';
 import {
   BUDGET_PART_DEFINITE,
@@ -26,15 +26,15 @@ interface Props {
 
 /** Nyckeltal för de initiativ som visas, anpassade efter vald vy. */
 export function WorkKeyFigures({ data, initiatives, people, year, view }: Props) {
-  const totals = (measure: Measure) => {
+  const totals = (measure: Measure): Totals => {
     const summaries = initiatives.map((initiative) => summarizeInitiative(data, initiative, year, measure));
     return {
-      hours: summaries.reduce((total, summary) => total + summary.totalHours, 0),
-      cost: summaries.reduce((total, summary) => total + summary.totalCost, 0),
+      hours: sum(summaries.map((summary) => summary.totalHours)),
+      cost: sum(summaries.map((summary) => summary.totalCost)),
     };
   };
   const overallocatedCount = (measure: Measure) =>
-    people.reduce((count, person) => count + countOverallocatedMonths(personCapacity(data, person, year, measure)), 0);
+    sum(people.map((person) => countOverallocatedMonths(personCapacity(data, person, year, measure))));
 
   return (
     <div className="stats">
@@ -56,6 +56,11 @@ export function WorkKeyFigures({ data, initiatives, people, year, view }: Props)
   );
 }
 
+interface Totals {
+  hours: number;
+  cost: number;
+}
+
 const MEASURE_FIGURE_LABELS: Record<Measure, { hours: string; cost: string; overallocation: string }> = {
   estimate: { hours: 'Planerade timmar', cost: 'Planerad kostnad', overallocation: 'Överallokerade personmånader' },
   actual: { hours: 'Utfall', cost: 'Utfallskostnad', overallocation: 'Överallokerade personmånader (utfall)' },
@@ -64,7 +69,7 @@ const MEASURE_FIGURE_LABELS: Record<Measure, { hours: string; cost: string; over
 interface MeasureFiguresProps {
   year: number;
   measure: Measure;
-  totals: { hours: number; cost: number };
+  totals: Totals;
   overallocatedCount: number;
 }
 
@@ -85,7 +90,7 @@ function MeasureFigures({ year, measure, totals, overallocatedCount }: MeasureFi
 
 interface CompareFiguresProps {
   year: number;
-  totals: (measure: Measure) => { hours: number; cost: number };
+  totals: (measure: Measure) => Totals;
 }
 
 function CompareFigures({ year, totals }: CompareFiguresProps) {
@@ -119,7 +124,7 @@ function CompareFigures({ year, totals }: CompareFiguresProps) {
  */
 function BudgetFigure({ part, initiatives }: { part: BudgetPart; initiatives: Initiative[] }) {
   const withBudget = initiatives.filter((initiative) => budgetOf(initiative, part));
-  const total = withBudget.reduce((sum, initiative) => sum + budgetOf(initiative, part)!, 0);
+  const total = sum(withBudget.map((initiative) => budgetOf(initiative, part)));
   const coversSeveralYears = withBudget.some((initiative) => initiative.years.length > 1);
   const label = BUDGET_PART_LABEL[part];
   return (

@@ -39,8 +39,6 @@ interface DataState {
   setEstimate: (initiativeId: string, personId: string, year: number, month: number, hours: number) => void;
   setActual: (initiativeId: string, personId: string, year: number, month: number, hours: number | null) => void;
   fillActualsFromEstimate: (initiativeId: string, personId: string, year: number, throughMonth: number) => void;
-
-  replaceData: (data: AppData) => void;
 }
 
 /**
@@ -103,8 +101,6 @@ export const useDataStore = create<DataState>()(
           apply((data) => ops.setActual(data, initiativeId, personId, year, month, hours)),
         fillActualsFromEstimate: (initiativeId, personId, year, throughMonth) =>
           apply((data) => ops.fillActualsFromEstimate(data, initiativeId, personId, year, throughMonth)),
-
-        replaceData: (data) => set({ data }),
       };
     },
     {

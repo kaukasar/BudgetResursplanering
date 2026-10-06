@@ -3,7 +3,7 @@ import { activePeople } from '../../domain/calc';
 import { useCanEdit, useEditLockStore } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
 import { useUiStore, type AdminTab } from '../../store/ui';
-import { DataAdmin } from './DataAdmin';
+import { ExportAdmin } from './ExportAdmin';
 import { InitiativesAdmin } from './InitiativesAdmin';
 import { OwnersAdmin } from './OwnersAdmin';
 import { PeopleAdmin } from './PeopleAdmin';
@@ -16,7 +16,7 @@ const TAB_CONTENT: Record<AdminTab, ComponentType> = {
   owners: OwnersAdmin,
   initiatives: InitiativesAdmin,
   settings: SettingsAdmin,
-  data: DataAdmin,
+  export: ExportAdmin,
 };
 
 export function AdminView() {
@@ -31,7 +31,7 @@ export function AdminView() {
     { id: 'owners', label: `Produktägare (${data.productOwners.length})` },
     { id: 'initiatives', label: `Initiativ (${data.initiatives.length})` },
     { id: 'settings', label: 'Inställningar' },
-    { id: 'data', label: 'Data' },
+    { id: 'export', label: 'Export' },
   ];
 
   return (

@@ -5,13 +5,9 @@ import {
   countOverallocatedMonths,
   effectiveMonthlyHours,
   effectiveRate,
-  filterInitiatives,
   lastCompletedMonth,
   personCapacity,
   summarizeInitiative,
-  ALL_TAJMA_CLASSES,
-  NO_TAJMA_CLASS,
-  type TajmaClassFilter,
 } from './calc';
 import * as ops from './operations';
 import { emptyData } from './types';
@@ -105,49 +101,6 @@ describe('kapacitet', () => {
     expect(capacity.monthTotals.slice(0, 3)).toEqual([60, 101, 0]);
     expect(capacity.overallocated.slice(0, 3)).toEqual([false, true, false]);
     expect(countOverallocatedMonths(capacity)).toBe(1);
-  });
-});
-
-describe('filtrering av initiativ', () => {
-  it('filtrerar på år, sektion och produktägare', () => {
-    let data = domainFixture(); // Portal (Petra, 2026), App (Petra, 2026–2027); Olle saknar initiativ
-    data = ops.addProductOwner(data, { id: 'po3', name: 'Stina', sectionId: 's2' });
-    data = ops.addPerson(data, {
-      id: 'bo',
-      name: 'Bo',
-      type: 'employee',
-      sectionId: 's2',
-      hourlyRate: null,
-      monthlyHours: null,
-    });
-    data = ops.addInitiative(data, {
-      id: 'i3',
-      name: 'Lager',
-      productOwnerId: 'po3',
-      personIds: ['bo'],
-      years: [2026],
-    });
-    const ids = (filter: { year: number; sectionId?: string; ownerId?: string }) =>
-      filterInitiatives(data, { sectionId: '', ownerId: '', ...filter }).map((initiative) => initiative.id);
-
-    expect(ids({ year: 2026 })).toEqual(['i1', 'i2', 'i3']);
-    expect(ids({ year: 2027 })).toEqual(['i2']);
-    expect(ids({ year: 2026, sectionId: 's2' })).toEqual(['i3']);
-    expect(ids({ year: 2026, ownerId: 'po1' })).toEqual(['i1', 'i2']);
-    expect(ids({ year: 2026, ownerId: 'po2' })).toEqual([]);
-  });
-
-  it('filtrerar på tajmaklass, även initiativ utan tajmaklass, och kombinerat med övriga filter', () => {
-    let data = domainFixture(); // Portal (i1, 2026), App (i2, 2026–2027)
-    data = ops.updateInitiative(data, 'i1', { tajmaClass: 'IMM' });
-    const ids = (tajmaClass: TajmaClassFilter, year = 2026) =>
-      filterInitiatives(data, { year, sectionId: '', ownerId: '', tajmaClass }).map((initiative) => initiative.id);
-
-    expect(ids(ALL_TAJMA_CLASSES)).toEqual(['i1', 'i2']);
-    expect(ids('IMM')).toEqual(['i1']);
-    expect(ids('Drift')).toEqual([]);
-    expect(ids(NO_TAJMA_CLASS)).toEqual(['i2']);
-    expect(ids('IMM', 2027)).toEqual([]); // Portal gäller inte 2027
   });
 });
 

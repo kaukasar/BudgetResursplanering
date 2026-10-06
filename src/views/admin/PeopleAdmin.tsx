@@ -4,7 +4,8 @@ import {
   activePeople,
   effectiveMonthlyHours,
   effectiveRate,
-  storedHoursForPersonInInitiative,
+  hasStoredHours,
+  storedEstimateAndActual,
 } from '../../domain/calc';
 import { formatHours, formatSek, hoursPairText, plural } from '../../domain/format';
 import { joinSorted } from '../../domain/sorting';
@@ -14,6 +15,7 @@ import { useDataStore } from '../../store/store';
 import { MISSING, sectionName } from '../labels';
 import { MissingSectionNotice } from './MissingSectionNotice';
 import { PersonForm } from './PersonForm';
+import { RowActions, RowActionsHeader } from './RowActions';
 import { useAdminSort } from './useAdminSort';
 
 export function PeopleAdmin() {
@@ -24,7 +26,8 @@ export function PeopleAdmin() {
   const [editing, setEditing] = useState<Person | 'new' | null>(null);
 
   const noSections = data.sections.length === 0;
-  const initiativesOf = (person: Person) => data.initiatives.filter((i) => i.personIds.includes(person.id));
+  const initiativesOf = (person: Person) =>
+    data.initiatives.filter((initiative) => initiative.personIds.includes(person.id));
   const initiativeNames = (person: Person) => joinSorted(initiativesOf(person).map((initiative) => initiative.name));
   // Raderad personal visas inte; den finns kvar endast för den låsta tidens skull.
   const { sortedRows: people, sortHeader } = useAdminSort('people', activePeople(data), {
@@ -79,9 +82,7 @@ export function PeopleAdmin() {
                 {sortHeader('rate', 'Timkostnad', 'num')}
                 {sortHeader('hours', 'Arbetstid/mån', 'num')}
                 {sortHeader('initiatives', 'Initiativ')}
-                <th>
-                  <span className="sr-only">Åtgärder</span>
-                </th>
+                <RowActionsHeader />
               </tr>
             </thead>
             <tbody>
@@ -103,19 +104,11 @@ export function PeopleAdmin() {
                     <SourceTag isOwnValue={person.monthlyHours !== null} />
                   </td>
                   <td className="small">{initiativeNames(person) || <span className="muted">{MISSING}</span>}</td>
-                  <td className="actions">
-                    <button type="button" className="link-btn" disabled={!canEdit} onClick={() => setEditing(person)}>
-                      Redigera
-                    </button>
-                    <button
-                      type="button"
-                      className="link-btn danger"
-                      disabled={!canEdit}
-                      onClick={() => void remove(person)}
-                    >
-                      Radera
-                    </button>
-                  </td>
+                  <RowActions
+                    disabled={!canEdit}
+                    onEdit={() => setEditing(person)}
+                    onDelete={() => void remove(person)}
+                  />
                 </tr>
               ))}
             </tbody>
@@ -139,12 +132,8 @@ function SourceTag({ isOwnValue }: { isOwnValue: boolean }) {
  */
 function DeletePersonMessage({ person, linked }: { person: Person; linked: Initiative[] }) {
   const data = useDataStore((state) => state.data);
-  const hoursOn = (initiative: Initiative) =>
-    hoursPairText(
-      storedHoursForPersonInInitiative(data, initiative.id, person.id, 'estimate'),
-      storedHoursForPersonInInitiative(data, initiative.id, person.id, 'actual'),
-    );
-  const withHours = linked.filter((initiative) => hoursOn(initiative));
+  const hoursOn = (initiative: Initiative) => storedEstimateAndActual(data, initiative.id, person.id);
+  const withHours = linked.filter((initiative) => hasStoredHours(hoursOn(initiative)));
   return (
     <>
       <p>
@@ -157,7 +146,7 @@ function DeletePersonMessage({ person, linked }: { person: Person; linked: Initi
           <ul>
             {withHours.map((initiative) => (
               <li key={initiative.id}>
-                {initiative.name}: {hoursOn(initiative)}
+                {initiative.name}: {hoursPairText(hoursOn(initiative))}
               </li>
             ))}
           </ul>

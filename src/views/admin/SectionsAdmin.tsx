@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useConfirm } from '../../components/confirm-context';
+import { ErrorNotice } from '../../components/ErrorNotice';
 import { Modal } from '../../components/Modal';
 import { plural } from '../../domain/format';
 import { isSectionEmpty, sectionContents } from '../../domain/operations';
@@ -7,6 +8,7 @@ import { sortByName } from '../../domain/sorting';
 import type { Section } from '../../domain/types';
 import { useCanEdit } from '../../store/editLock';
 import { useDataStore } from '../../store/store';
+import { RowActions, RowActionsHeader } from './RowActions';
 import { useAdminSort } from './useAdminSort';
 
 export function SectionsAdmin() {
@@ -76,9 +78,7 @@ export function SectionsAdmin() {
       </div>
       {addError && (
         <div className="card-body notice-row">
-          <div className="notice error" role="alert">
-            {addError}
-          </div>
+          <ErrorNotice>{addError}</ErrorNotice>
         </div>
       )}
 
@@ -99,9 +99,7 @@ export function SectionsAdmin() {
                 <th className="num">Personal</th>
                 <th className="num">Produktägare</th>
                 <th className="num">Initiativ</th>
-                <th>
-                  <span className="sr-only">Åtgärder</span>
-                </th>
+                <RowActionsHeader />
               </tr>
             </thead>
             <tbody>
@@ -115,24 +113,12 @@ export function SectionsAdmin() {
                     <td className="num">{contents.people.length}</td>
                     <td className="num">{contents.productOwners.length}</td>
                     <td className="num">{contents.initiatives.length}</td>
-                    <td className="actions">
-                      <button
-                        type="button"
-                        className="link-btn"
-                        disabled={!canEdit}
-                        onClick={() => setRenaming(section)}
-                      >
-                        Byt namn
-                      </button>
-                      <button
-                        type="button"
-                        className="link-btn danger"
-                        disabled={!canEdit}
-                        onClick={() => void remove(section)}
-                      >
-                        Radera
-                      </button>
-                    </td>
+                    <RowActions
+                      disabled={!canEdit}
+                      editLabel="Byt namn"
+                      onEdit={() => setRenaming(section)}
+                      onDelete={() => void remove(section)}
+                    />
                   </tr>
                 );
               })}
@@ -179,11 +165,7 @@ function RenameSectionDialog({ section, onClose }: { section: Section; onClose: 
           <span>Namn</span>
           <input className={error ? 'input invalid' : 'input'} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        {error && (
-          <div className="notice error" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
       </form>
     </Modal>
   );
@@ -236,11 +218,11 @@ function BlockedDeleteDialog({ section, onClose }: { section: Section; onClose: 
         </div>
       ) : (
         <div className="form-stack">
-          <div className="notice error" role="alert">
+          <ErrorNotice>
             <strong>{section.name}</strong> kan inte raderas eftersom den har innehåll
             {contentsText && <> ({contentsText})</>}. Flytta allt till en annan sektion först. Personal, produktägare
             och initiativ flyttas tillsammans, så att personalen behåller sina initiativ.
-          </div>
+          </ErrorNotice>
           <label className="field">
             <span>Flytta allt till</span>
             <select

@@ -1,17 +1,18 @@
+import { activePeople } from '../../domain/calc';
 import {
-  activePeople,
   ALL_TAJMA_CLASSES,
-  allInitiativeYears,
   filterInitiatives,
-  isTajmaClassFilter,
   NO_TAJMA_CLASS,
+  ownersInSection,
+  resolveFilter,
+  selectableYears,
+  type InitiativeFilter,
   type TajmaClassFilter,
-} from '../../domain/calc';
+} from '../../domain/filter';
 import { sortByName } from '../../domain/sorting';
 import type { AppData } from '../../domain/types';
 import { useDataStore } from '../../store/store';
-import { ALL_OWNERS, ALL_SECTIONS, useUiStore } from '../../store/ui';
-import { useLoadSample } from '../useLoadSample';
+import { useUiStore } from '../../store/ui';
 import { CapacityOverview } from './CapacityOverview';
 import { InitiativeTable } from './InitiativeTable';
 import { WorkKeyFigures } from './WorkKeyFigures';
@@ -21,50 +22,29 @@ import { VIEW_MEASURE } from './workViews';
 /** Arbetsläget: filter, nyckeltal, kapacitet och en tabell per initiativ. */
 export function WorkView() {
   const data = useDataStore((state) => state.data);
-  const {
-    year,
-    view,
-    sectionId: selectedSectionId,
-    ownerId: selectedOwnerId,
-    tajmaClass: selectedTajmaClass,
-  } = useUiStore();
+  const { year, view, sectionId, ownerId, tajmaClass } = useUiStore();
 
   if (data.initiatives.length === 0) return <NoInitiatives />;
 
-  // Om vald sektion eller produktägare har raderats (eller produktägaren inte hör till vald
-  // sektion) visas "alla" i stället.
-  const sectionId = data.sections.some((section) => section.id === selectedSectionId)
-    ? selectedSectionId
-    : ALL_SECTIONS;
-  const ownersInSection = sortByName(
-    data.productOwners.filter((owner) => sectionId === ALL_SECTIONS || owner.sectionId === sectionId),
-  );
-  const ownerId = ownersInSection.some((owner) => owner.id === selectedOwnerId) ? selectedOwnerId : ALL_OWNERS;
-
-  // Ett sparat värde som inte längre är giltigt visar alla tajmaklasser.
-  const tajmaClass = isTajmaClassFilter(selectedTajmaClass) ? selectedTajmaClass : ALL_TAJMA_CLASSES;
-
-  const initiatives = sortByName(filterInitiatives(data, { year, sectionId, ownerId, tajmaClass }));
+  const filter = resolveFilter(data, { year, sectionId, ownerId, tajmaClass });
+  const initiatives = sortByName(filterInitiatives(data, filter));
   const involvedPersonIds = new Set(initiatives.flatMap((initiative) => initiative.personIds));
   // Raderad personal visas inte i kapacitetsöversikten och räknas inte som överallokerad.
   const involvedPeople = sortByName(activePeople(data).filter((person) => involvedPersonIds.has(person.id)));
-  const years = [...new Set([...allInitiativeYears(data), new Date().getFullYear(), year])].sort((a, b) => a - b);
 
   return (
     <div className={`work view-${view}`}>
       <WorkToolbar
-        years={years}
+        years={selectableYears(data, year, new Date().getFullYear())}
         sections={sortByName(data.sections)}
-        owners={ownersInSection}
-        sectionId={sectionId}
-        ownerId={ownerId}
-        tajmaClass={tajmaClass}
+        owners={sortByName(ownersInSection(data, filter.sectionId))}
+        filter={filter}
       />
       <WorkKeyFigures data={data} initiatives={initiatives} people={involvedPeople} year={year} view={view} />
       {initiatives.length === 0 ? (
         <div className="card empty">
           <h3>Inga initiativ</h3>
-          <p>{emptyFilterText(data, sectionId, ownerId, tajmaClass, year)}</p>
+          <p>{emptyFilterText(data, filter)}</p>
         </div>
       ) : (
         <div className="stack">
@@ -79,38 +59,31 @@ export function WorkView() {
 }
 
 /** T.ex. "Maria Lind har inga initiativ med tajmaklass IMM för 2026." */
-function emptyFilterText(
-  data: AppData,
-  sectionId: string,
-  ownerId: string,
-  tajmaClass: TajmaClassFilter,
-  year: number,
-): string {
-  const owner = data.productOwners.find((candidate) => candidate.id === ownerId);
-  const section = data.sections.find((candidate) => candidate.id === sectionId);
+function emptyFilterText(data: AppData, filter: InitiativeFilter): string {
+  const owner = data.productOwners.find((candidate) => candidate.id === filter.ownerId);
+  const section = data.sections.find((candidate) => candidate.id === filter.sectionId);
   const subject = owner?.name ?? section?.name;
-  const initiatives =
-    tajmaClass === ALL_TAJMA_CLASSES
-      ? 'inga initiativ'
-      : tajmaClass === NO_TAJMA_CLASS
-        ? 'inga initiativ utan tajmaklass'
-        : `inga initiativ med tajmaklass ${tajmaClass}`;
-  return subject ? `${subject} har ${initiatives} för ${year}.` : `Det finns ${initiatives} för ${year}.`;
+  const noInitiatives = noInitiativesText(filter.tajmaClass);
+  return subject
+    ? `${subject} har ${noInitiatives} för ${filter.year}.`
+    : `Det finns ${noInitiatives} för ${filter.year}.`;
+}
+
+function noInitiativesText(tajmaClass: TajmaClassFilter): string {
+  if (tajmaClass === ALL_TAJMA_CLASSES) return 'inga initiativ';
+  if (tajmaClass === NO_TAJMA_CLASS) return 'inga initiativ utan tajmaklass';
+  return `inga initiativ med tajmaklass ${tajmaClass}`;
 }
 
 function NoInitiatives() {
   const setMode = useUiStore((state) => state.setMode);
-  const loadSample = useLoadSample();
   return (
     <div className="card empty">
       <h3>Det finns inga initiativ ännu</h3>
-      <p>Lägg upp personal, produktägare och initiativ i adminläget, eller prova med exempeldata.</p>
+      <p>Lägg upp sektioner, personal, produktägare och initiativ i adminläget.</p>
       <div className="actions">
         <button type="button" className="btn btn-primary" onClick={() => setMode('admin')}>
           Gå till adminläget
-        </button>
-        <button type="button" className="btn" onClick={() => void loadSample()}>
-          Ladda exempeldata
         </button>
       </div>
     </div>

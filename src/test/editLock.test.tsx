@@ -59,12 +59,8 @@ describe('spärr mot oavsiktliga ändringar i adminläget', () => {
     await user.type(rate, '9');
     expect(useDataStore.getState().data.settings.employee.hourlyRate).toBe(650);
 
-    await openTab(user, 'Data');
-    expect(screen.getByRole('button', { name: 'Exportera JSON' })).toBeEnabled();
+    await openTab(user, 'Export');
     expect(screen.getByRole('button', { name: 'Exportera CSV' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Välj fil…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Ladda exempeldata' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Radera all data' })).toBeDisabled();
   });
 
   it('slås på och av med växeln, och påslagen redigering markeras', async () => {

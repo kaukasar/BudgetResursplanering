@@ -2,17 +2,19 @@ import {
   emptyActuals,
   getMonthActuals,
   getMonthEstimates,
+  hasStoredHours,
   linkedPeople,
   lockedPersonIds,
   lockReason,
+  ownerSectionId,
   regularPersonIds,
-  storedHoursForPersonInInitiative,
+  storedEstimateAndActual,
   zeroMonths,
 } from './calc';
 import {
   EXTERNAL_STAFF_ID,
+  isTajmaClass,
   LOCK_REASON_LABEL,
-  TAJMA_CLASSES,
   type AppData,
   type Initiative,
   type Person,
@@ -64,10 +66,13 @@ function requireInitiative(data: AppData, id: string): Initiative {
   return initiative;
 }
 
+/** Ett rimligt årtal; skyddar mot felskrivningar som 226 eller 20026. */
+export const isValidYear = (year: number) => Number.isInteger(year) && year >= 1900 && year <= 2200;
+
 function normalizeYears(years: number[]): number[] {
   const unique = [...new Set(years)].sort((a, b) => a - b);
   if (unique.length === 0) throw new DomainError('Initiativet måste gälla minst ett år.');
-  const invalid = unique.find((year) => !Number.isInteger(year) || year < 1900 || year > 2200);
+  const invalid = unique.find((year) => !isValidYear(year));
   if (invalid !== undefined) throw new DomainError(`Ogiltigt år: ${invalid}.`);
   return unique;
 }
@@ -77,9 +82,6 @@ function knownPersonIds(data: AppData, personIds: string[]): string[] {
   const known = new Set([...data.people.map((person) => person.id), EXTERNAL_STAFF_ID]);
   return [...new Set(personIds)].filter((id) => known.has(id));
 }
-
-const ownerSectionId = (data: AppData, ownerId: string) =>
-  data.productOwners.find((owner) => owner.id === ownerId)?.sectionId;
 
 /**
  * Personal kan bara kopplas till initiativ i sin egen sektion, och raderad personal kan inte kopplas
@@ -106,7 +108,7 @@ function normalizeBudget(budget: number | null | undefined, label: string): numb
 /** Tajmaklass är frivillig; anges den måste den vara ett av de tillåtna värdena. */
 function normalizeTajmaClass(value: TajmaClass | null | undefined): TajmaClass | null {
   if (value === null || value === undefined) return null;
-  if (!TAJMA_CLASSES.includes(value)) throw new DomainError(`Ogiltig tajmaklass: ${String(value)}.`);
+  if (!isTajmaClass(value)) throw new DomainError(`Ogiltig tajmaklass: ${String(value)}.`);
   return value;
 }
 
@@ -163,13 +165,11 @@ function requireTimeSlot(data: AppData, slot: TimeSlot): void {
  * sektion eller raderas innan någon tid har registrerats.
  */
 export function pruneEmptyLockedLinks(data: AppData): AppData {
-  const hasHours = (initiativeId: string, personId: string) =>
-    storedHoursForPersonInInitiative(data, initiativeId, personId, 'estimate') > 0 ||
-    storedHoursForPersonInInitiative(data, initiativeId, personId, 'actual') > 0;
-
   let changed = false;
   const initiatives = data.initiatives.map((initiative) => {
-    const empty = lockedPersonIds(data, initiative).filter((personId) => !hasHours(initiative.id, personId));
+    const empty = lockedPersonIds(data, initiative).filter(
+      (personId) => !hasStoredHours(storedEstimateAndActual(data, initiative.id, personId)),
+    );
     if (empty.length === 0) return initiative;
     changed = true;
     return { ...initiative, personIds: initiative.personIds.filter((personId) => !empty.includes(personId)) };
@@ -359,8 +359,7 @@ export function deleteProductOwner(data: AppData, id: string): AppData {
 
 /** Ett initiativ tillhör sin produktägares sektion och kan därför bara byta produktägare inom sektionen. */
 function requireSameSection(data: AppData, fromOwnerId: string, toOwnerId: string): void {
-  const sectionOf = (ownerId: string) => data.productOwners.find((owner) => owner.id === ownerId)?.sectionId;
-  if (sectionOf(fromOwnerId) !== sectionOf(toOwnerId)) {
+  if (ownerSectionId(data, fromOwnerId) !== ownerSectionId(data, toOwnerId)) {
     throw new DomainError('Initiativet kan bara flyttas till en produktägare i samma sektion.');
   }
 }
