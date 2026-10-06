@@ -107,6 +107,16 @@ describe('inläsning av data med låst tid', () => {
     expect(parseAppData(JSON.parse(JSON.stringify(d)))).toEqual(d);
   });
 
+  it('raderad personal vars sektion har raderats läses in utan sektion, utan att en standardsektion skapas', () => {
+    let d = ops.updatePerson(withAnnasTime(), 'anna', { sectionId: 's2' });
+    d = ops.deletePerson(d, 'anna');
+    d = ops.deleteSection(d, 's2');
+    const parsed = parseAppData(JSON.parse(JSON.stringify(d)));
+    expect(parsed).toEqual(d);
+    expect(parsed.sections.map((section) => section.id)).toEqual(['s1']);
+    expect(reasonFor(parsed, 'i1', 'anna')).toBe('deleted');
+  });
+
   it('äldre data med personal kopplad mellan sektioner låses; kopplingar utan tid tas bort', () => {
     const d = withAnnasTime();
     // Äldre version: Anna hör till Sektion 2 men är kopplad till initiativ i Sektion 1.

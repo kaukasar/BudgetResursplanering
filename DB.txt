@@ -208,7 +208,9 @@ Behörighet
   NAME              VARCHAR2(200 CHAR)        Nej   Namn.
   PERSON_TYPE       VARCHAR2(20 CHAR)         Nej   Främmande nyckel till PERSON_TYPE.CODE.
   SECTION_ID        VARCHAR2(64 CHAR)         Ja    Hemsektion. Främmande nyckel till SECTION.ID,
-                                                    utan kaskad. NULL endast för Extern personal.
+                                                    utan kaskad. NULL endast för Extern personal
+                                                    och för raderad personal vars sektion har
+                                                    raderats.
   HOURLY_RATE       NUMBER(10)                Ja    Egen timkostnad i SEK/h. NULL betyder att
                                                     typens standardvärde gäller. Minst 0.
   MONTHLY_HOURS     NUMBER(6)                 Ja    Egen arbetstid i h/mån. NULL betyder att
@@ -221,9 +223,13 @@ Behörighet
   Radering sätter IS_DELETED = 1: personen finns kvar så att den tid som redan registrerats kan
   visas och räknas, men tiden är låst och personen kan inte väljas igen. När ingen låst tid finns
   kvar, t.ex. när initiativen med tiden har raderats, tar backend bort raden fysiskt. Annars skulle
-  personen för alltid hindra att sektionen raderas. Namnet får användas av en ny person, så det
-  unika indexet gäller bara aktiv personal: UPPER(TRIM(NAME)) när IS_DELETED = 0, annars NULL
-  (rader med NULL ingår inte i ett unikt index).
+  personen ligga kvar i onödan. Namnet får användas av en ny person, så det unika indexet gäller
+  bara aktiv personal: UPPER(TRIM(NAME)) när IS_DELETED = 0, annars NULL (rader med NULL ingår
+  inte i ett unikt index).
+
+  Raderad personal hindrar inte att sektionen raderas, även om den har låst tid (claude.md 3.1).
+  När en sektion raderas sätter backend först SECTION_ID = NULL för raderad personal i sektionen,
+  i samma transaktion. Den låsta tiden finns kvar.
 
   Den timkostnad och arbetstid som gäller för personen (eget värde, annars typens) beräknas i en
   vy (avsnitt 6) och lagras inte. Ändras typens standardvärde gäller det direkt för alla personer
@@ -237,7 +243,7 @@ Behörighet
     timkostnaden räknas fram och arbetstiden saknar tak. Ett kontrollvillkor tillåter NULL endast
     för den raden.
   - PERSON.SECTION_ID får vara NULL, men ett kontrollvillkor tillåter det endast för typen
-    'external'.
+    'external' och för raderad personal (IS_DELETED = 1), vars sektion kan ha raderats.
   - Raden skapas vid installationen. Backend tillåter inte att den ändras eller raderas, och den
     visas inte i personallistan.
   Schablontimkostnaden, (anställds + konsults standardtimkostnad) / 2 avrundat till heltal, räknas
@@ -342,13 +348,15 @@ Behörighet
 5.1 Regler som databasen garanterar
 
   1. Personal och produktägare tillhör exakt en sektion (5.3).
-     → SECTION_ID är obligatorisk och en främmande nyckel.
+     → SECTION_ID är en främmande nyckel. Den är obligatorisk för produktägare och, genom ett
+       kontrollvillkor, för aktiv personal (undantag: Extern personal och raderad personal).
   2. Ett initiativ har exakt en produktägare (5.3).
      → PRODUCT_OWNER_ID är obligatorisk och en främmande nyckel.
   3. Ett initiativ tillhör produktägarens sektion (2.4).
      → Följer av strukturen: initiativet har ingen egen kolumn för sektion.
   4. En sektion med personal eller produktägare kan inte raderas (3.1).
-     → Främmande nycklar utan kaskad. Oracle avvisar raderingen med felet ORA-02292.
+     → Främmande nycklar utan kaskad. Oracle avvisar raderingen med felet ORA-02292. Raderad
+       personal hindrar inte raderingen: backend sätter först deras SECTION_ID till NULL.
   5. En produktägare med initiativ kan inte raderas (3.3).
      → Främmande nyckel utan kaskad.
   6. Ett initiativ kan raderas oavsett innehåll (3.4).
@@ -390,8 +398,9 @@ Behörighet
     tid kan inte registreras för den. Kopplingar som blir låsta utan registrerad tid tas bort.
   - En produktägare med initiativ kan inte byta sektion eller raderas förrän initiativen har fått
     en ny produktägare i samma sektion (claude.md 3.3).
-  - En sektion får bara raderas när den är tom, även på raderad personal med låst tid. Innehållet
-    flyttas med "Flytta allt": personal, produktägare och initiativ tillsammans (claude.md 3.1).
+  - En sektion får bara raderas när den saknar personal och produktägare. Raderad personal, även
+    med låst tid, hindrar inte raderingen utan blir utan sektion. Innehållet flyttas med "Flytta
+    allt": personal, produktägare och initiativ tillsammans (claude.md 3.1).
   - Raderad personal utan låst tid tas bort fysiskt, så att all data alltid kan raderas manuellt:
     först personal och initiativ, sedan produktägare och till sist sektioner (claude.md 2.8).
   - Raderingar som databasen avvisar (regel 4 och 5 ovan) kontrolleras av backend i förväg. Backend

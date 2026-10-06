@@ -54,7 +54,7 @@ function excelText(value: string): string {
  */
 export function toAnalysisCsv(data: AppData): string {
   const ownersById = new Map(data.productOwners.map((owner) => [owner.id, owner]));
-  const sectionName = (id: string | undefined) => data.sections.find((section) => section.id === id)?.name ?? '';
+  const sectionName = (id: string | null | undefined) => data.sections.find((section) => section.id === id)?.name ?? '';
 
   // Samma person och år förekommer i flera initiativ; kapaciteten räknas en gång per par.
   const capacityCache = new Map<string, PersonCapacity>();

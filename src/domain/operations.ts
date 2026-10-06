@@ -1,4 +1,5 @@
 import {
+  activePeople,
   emptyActuals,
   getMonthActuals,
   getMonthEstimates,
@@ -48,8 +49,10 @@ function optionalWholeNumber(value: number | null, label: string): number | null
   return value === null ? null : requireWholeNumber(value, label);
 }
 
-function requireSection(data: AppData, sectionId: string): string {
-  if (!data.sections.some((section) => section.id === sectionId)) throw new DomainError('Välj en sektion.');
+function requireSection(data: AppData, sectionId: string | null): string {
+  if (sectionId === null || !data.sections.some((section) => section.id === sectionId)) {
+    throw new DomainError('Välj en sektion.');
+  }
   return sectionId;
 }
 
@@ -223,10 +226,8 @@ export function renameSection(data: AppData, id: string, name: string): AppData 
 }
 
 export interface SectionContents {
-  /** Aktiv personal. */
+  /** Aktiv personal. Raderad personal räknas inte och hindrar inte att sektionen raderas. */
   people: Person[];
-  /** Raderad personal som fortfarande hör till sektionen, för den låsta tidens skull. */
-  deletedPeople: Person[];
   productOwners: ProductOwner[];
   /** Initiativ följer sina produktägare och räknas här bara för information. */
   initiatives: Initiative[];
@@ -235,17 +236,16 @@ export interface SectionContents {
 export function sectionContents(data: AppData, sectionId: string): SectionContents {
   const productOwners = data.productOwners.filter((owner) => owner.sectionId === sectionId);
   const ownerIds = new Set(productOwners.map((owner) => owner.id));
-  const people = data.people.filter((person) => person.sectionId === sectionId);
   return {
-    people: people.filter((person) => !person.deleted),
-    deletedPeople: people.filter((person) => person.deleted),
+    people: activePeople(data).filter((person) => person.sectionId === sectionId),
     productOwners,
     initiatives: data.initiatives.filter((initiative) => ownerIds.has(initiative.productOwnerId)),
   };
 }
 
+/** Tom = varken personal eller produktägare, och därmed inga initiativ. */
 export const isSectionEmpty = (contents: SectionContents) =>
-  contents.people.length + contents.deletedPeople.length + contents.productOwners.length === 0;
+  contents.people.length + contents.productOwners.length === 0;
 
 /**
  * Flyttar allt innehåll i en sektion till en annan: personal (även raderad), produktägare och
@@ -266,14 +266,19 @@ export function moveSectionContents(data: AppData, fromSectionId: string, toSect
 }
 
 /**
- * En sektion får bara raderas när den är tom. Innehållet flyttas först till en annan sektion;
- * en sektion med data kan aldrig raderas.
+ * En sektion får bara raderas när den saknar personal och produktägare. Innehållet flyttas först
+ * till en annan sektion; en sektion med data kan aldrig raderas. Raderad personal hindrar inte
+ * raderingen utan blir utan sektion, och deras låsta tid finns kvar.
  */
 export function deleteSection(data: AppData, id: string): AppData {
   if (!isSectionEmpty(sectionContents(data, id))) {
     throw new DomainError('Sektionen har innehåll som först måste flyttas till en annan sektion.');
   }
-  return { ...data, sections: data.sections.filter((section) => section.id !== id) };
+  return {
+    ...data,
+    sections: data.sections.filter((section) => section.id !== id),
+    people: data.people.map((person) => (person.sectionId === id ? { ...person, sectionId: null } : person)),
+  };
 }
 
 // ---------------------------------------------------------------- Personal

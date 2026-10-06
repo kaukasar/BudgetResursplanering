@@ -93,18 +93,28 @@ describe('sektioner', () => {
     expect(() => ops.moveSectionContents(d, 's2', 's2')).toThrow(/annan sektion/);
   });
 
-  it('raderad personal med låst tid räknas som innehåll och flyttas med', () => {
+  it('raderad personal med låst tid hindrar inte att sektionen raderas; personen blir utan sektion och tiden finns kvar', () => {
     let d = ops.setEstimate(domainFixture(), 'i1', 'anna', 2026, 0, 40);
     d = ops.updatePerson(d, 'anna', { sectionId: 's2' }); // tiden på Portal (s1) låses
     d = ops.deletePerson(d, 'anna');
-    // Bara den raderade Anna finns i s2, men hennes låsta tid gör att sektionen inte är tom.
-    expect(ops.sectionContents(d, 's2').deletedPeople.map((p) => p.id)).toEqual(['anna']);
-    expect(() => ops.deleteSection(d, 's2')).toThrow(/flyttas till en annan sektion/);
-    const moved = ops.moveSectionContents(d, 's2', 's1');
-    expect(ops.deleteSection(moved, 's2').sections.map((s) => s.id)).toEqual(['s1']);
+    expect(ops.isSectionEmpty(ops.sectionContents(d, 's2'))).toBe(true);
+
+    d = ops.deleteSection(d, 's2');
+    expect(d.sections.map((s) => s.id)).toEqual(['s1']);
+    const anna = d.people.find((p) => p.id === 'anna')!;
+    expect([anna.deleted, anna.sectionId]).toEqual([true, null]);
+    expect(storedHoursForInitiative(d, 'i1')).toBe(40);
+    expect(lockedPersonIds(d, d.initiatives[0]!)).toEqual(['anna']);
   });
 
-  it('raderad personal tas bort helt när den låsta tiden försvinner, så att sektionen kan raderas', () => {
+  it('raderad personal följer med när innehållet flyttas till en annan sektion', () => {
+    let d = ops.setEstimate(domainFixture(), 'i1', 'anna', 2026, 0, 40);
+    d = ops.deletePerson(d, 'anna');
+    d = ops.moveSectionContents(d, 's1', 's2');
+    expect(d.people.map((p) => p.sectionId)).toEqual(['s2', 's2']);
+  });
+
+  it('raderad personal tas bort helt när den låsta tiden försvinner', () => {
     let d = ops.setEstimate(domainFixture(), 'i1', 'anna', 2026, 0, 40);
     d = ops.updatePerson(d, 'anna', { sectionId: 's2' });
     d = ops.deletePerson(d, 'anna');

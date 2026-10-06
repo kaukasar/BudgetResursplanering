@@ -73,11 +73,13 @@ function parsePerson(value: unknown): Person {
   if (!isRecord(value)) fail('en person har fel format.');
   if (value.type !== 'employee' && value.type !== 'consultant') fail(`okänd personaltyp "${String(value.type)}".`);
   if (value.id === EXTERNAL_STAFF_ID) fail(`person-id "${EXTERNAL_STAFF_ID}" är reserverat för Extern personal.`);
+  // Raderad personal saknar sektion när sektionen har raderats; annan personal utan sektion är äldre data.
+  const withoutSection = value.deleted === true && value.sectionId === null ? null : UNASSIGNED_SECTION;
   return {
     id: requireString(value.id, 'Person-id'),
     name: requireString(value.name, 'Personnamn'),
     type: value.type,
-    sectionId: typeof value.sectionId === 'string' ? value.sectionId : UNASSIGNED_SECTION,
+    sectionId: typeof value.sectionId === 'string' ? value.sectionId : withoutSection,
     hourlyRate: optionalNonNegative(value.hourlyRate, 'Timkostnad för en person'),
     monthlyHours: optionalNonNegative(value.monthlyHours, 'Arbetstid för en person'),
     // Saknas i äldre data och för aktiv personal.
@@ -136,9 +138,10 @@ function parseInitiative(value: unknown): Initiative {
 
 /**
  * Sektioner saknas i data från äldre versioner. Personal och produktägare utan sektion flyttas
- * då in i en standardsektion, som bara skapas om den behövs.
+ * då in i en standardsektion, som bara skapas om den behövs. `null` (raderad personal vars
+ * sektion har raderats) lämnas orört.
  */
-function resolveSections<T extends { name: string; sectionId: string }>(
+function resolveSections<T extends { name: string; sectionId: string | null }>(
   sections: Section[],
   items: T[],
 ): { sections: Section[]; items: T[] } {
@@ -149,6 +152,7 @@ function resolveSections<T extends { name: string; sectionId: string }>(
       : sections;
   const knownIds = new Set(allSections.map((section) => section.id));
   const resolved = items.map((item) => {
+    if (item.sectionId === null) return item;
     const sectionId = item.sectionId === UNASSIGNED_SECTION ? DEFAULT_SECTION.id : item.sectionId;
     if (!knownIds.has(sectionId)) fail(`"${item.name}" pekar på en okänd sektion.`);
     return { ...item, sectionId };

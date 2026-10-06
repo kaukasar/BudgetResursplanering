@@ -81,7 +81,7 @@ describe('manuell radering av all data', () => {
     expectNoDataLeft();
   });
 
-  it('förklarar varför en sektion med raderad personal med låst tid inte är tom, tills tiden är borta', async () => {
+  it('raderar en sektion utan personal och produktägare även när raderad personal med låst tid finns kvar', async () => {
     let data = ops.setEstimate(withSecondSection(seed()), 'portal', 'anna', YEAR, 0, 40);
     data = ops.updatePerson(data, 'anna', { sectionId: 's2' }); // tiden på Portal i Sektion 1 låses
     useDataStore.setState({ data });
@@ -90,15 +90,14 @@ describe('manuell radering av all data', () => {
 
     await deletePeople(user, ['Anna', 'Sara']);
     await deleteOwners(user, ['Stina']);
-    await openTab(user, /Sektioner/);
-    const row = screen.getByRole('row', { name: /^Sektion 2/ });
-    await user.click(within(row).getByRole('button', { name: 'Radera' }));
-    expect(topDialog()).toHaveTextContent('1 raderad person med låst tid');
-    await user.click(within(topDialog()).getByRole('button', { name: 'Avbryt' }));
-
-    await deleteInitiatives(user, ['Portal']);
     await deleteSections(user, ['Sektion 2']);
-    expect(useDataStore.getState().data.sections.map((section) => section.name)).toEqual(['Sektion 1']);
+
+    const after = useDataStore.getState().data;
+    expect(after.sections.map((section) => section.name)).toEqual(['Sektion 1']);
+    // Annas låsta tid på Portal finns kvar och visas i arbetsläget.
+    expect(after.estimates.portal?.anna?.[YEAR]?.[0]).toBe(40);
+    await user.click(screen.getByRole('button', { name: 'Arbetsläge' }));
+    expect(screen.getByText('Anna (raderad)')).toBeInTheDocument();
   });
 
   it('går också att radera initiativen före personalen', async () => {

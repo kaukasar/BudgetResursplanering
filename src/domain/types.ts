@@ -26,8 +26,11 @@ export interface Person {
   id: string;
   name: string;
   type: PersonType;
-  /** Personen kan bara kopplas till initiativ i sin egen sektion. */
-  sectionId: string;
+  /**
+   * Personen kan bara kopplas till initiativ i sin egen sektion. `null` = personen är raderad och
+   * sektionen har raderats; den låsta tiden finns kvar.
+   */
+  sectionId: string | null;
   /** Egen timkostnad. `null` = ärv från typens globala inställning. */
   hourlyRate: number | null;
   /** Egen arbetstid per månad. `null` = ärv från typens globala inställning. */

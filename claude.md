@@ -39,7 +39,7 @@ Applikationen har två huvudsakliga lägen:
 * **Egenskaper:**
 * Namn (sträng)
 * Typ: `Anställd` eller `Konsult`
-* Sektion (exakt 1 sektion). Personen kan bara kopplas till initiativ i sin egen sektion. Tid från personal i andra delar av organisationen registreras som Extern personal (2.7).
+* Sektion (exakt 1 sektion). Personen kan bara kopplas till initiativ i sin egen sektion. Tid från personal i andra delar av organisationen registreras som Extern personal (2.7). Undantag: raderad personal saknar sektion när sektionen har raderats (3.1).
 * Status: aktiv eller raderad. Raderad personal finns kvar för den tid som redan registrerats (se 2.8), och bara så länge den tiden finns kvar.
 * Timkostnad/Timpris (heltal i SEK/h)
 * Normal arbetstid per månad (heltal, t.ex. 160 timmar/månad)
@@ -152,8 +152,9 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * En sektion är det första en användare måste skapa. Personal och produktägare (och därmed initiativ) kan inte skapas förrän minst en sektion finns; gränssnittet hänvisar då till fliken Sektioner.
 * Skapa sektion och byta namn på sektion.
 * Radera sektion:
-* **Regel:** En sektion får endast raderas när den är tom: ingen personal (inte heller raderad personal med låst tid), inga produktägare och därmed inga initiativ. Att radera en sektion med tillhörande data är inte tillåtet.
-* Om sektionen har innehåll hindrar systemet radering och kräver att allt innehåll först flyttas till en annan sektion med **Flytta allt**. Personal, produktägare och initiativ flyttas då tillsammans, så att personalen behåller sina initiativ och ingen tid låses. Dialogen visar vad sektionen innehåller, även raderad personal med låst tid (t.ex. "1 raderad person med låst tid"). Den låsta tiden försvinner när initiativen med tiden raderas, och då kan sektionen raderas.
+* **Regel:** En sektion får endast raderas när den är tom: ingen personal, inga produktägare och därmed inga initiativ. Att radera en sektion med tillhörande data är inte tillåtet.
+* Raderad personal hindrar inte att sektionen raderas, även om den har låst tid (2.8). Raderas sektionen blir den raderade personalen utan sektion; den låsta tiden finns kvar och räknas med som tidigare.
+* Om sektionen har innehåll hindrar systemet radering och kräver att allt innehåll först flyttas till en annan sektion med **Flytta allt**. Personal (även raderad), produktägare och initiativ flyttas då tillsammans, så att personalen behåller sina initiativ och ingen tid låses. Dialogen visar vad sektionen innehåller.
 
 ### 3.2 Hantering av Personal
 
@@ -199,7 +200,7 @@ Fliken Export innehåller endast export till Excel. Det går inte att exportera 
 
 * **Export för Excel (CSV):** Platt analysfil avsedd för t.ex. pivottabeller i Excel.
 * En rad per initiativ, person, år och månad. Alla kopplade personer och initiativets alla år tas med, även månader med 0 timmar.
-* Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (nuvarande sektion), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
+* Kolumner: År, Månad (1–12), Månadsnamn, Sektion (initiativets), Produktägare, Initiativ, Person, Personens sektion (nuvarande sektion; tom för raderad personal vars sektion har raderats), Typ, Estimat (h), Utfall (h), Avvikelse (h), Timkostnad (kr/h), Estimerad kostnad (kr), Utfallskostnad (kr), Normal arbetstid (h/mån), Totalt estimat alla initiativ (h), Överallokerad (estimat) (Ja/Nej).
 * Utfall (h), Avvikelse (h) (= utfall − estimat) och Utfallskostnad (kr) lämnas tomma för månader utan rapporterat utfall.
 * Låst tid (2.8) exporteras som övrig tid. Raderad personal exporteras med "(raderad)" efter namnet, t.ex. "Anna Andersson (raderad)", så att den går att skilja från en ny person med samma namn.
 * Extern personal (2.7) exporteras med Person "Extern personal" och Typ "Extern". Personens sektion, Normal arbetstid och Totalt estimat alla initiativ lämnas tomma, och Överallokerad är alltid "Nej".
@@ -313,7 +314,7 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 
 
 3. **Kopplingskrav:**
-* Personal och produktägare måste alltid tillhöra exakt 1 sektion. Undantag: Extern personal (2.7) tillhör ingen sektion.
+* Personal och produktägare måste alltid tillhöra exakt 1 sektion. Undantag: Extern personal (2.7) tillhör ingen sektion, och raderad personal saknar sektion när sektionen har raderats (3.1).
 * Personal kan bara kopplas till initiativ i sin egen sektion. Raderad personal kan inte kopplas.
 * Ett initiativ måste alltid ha exakt 1 produktägare, och tillhör alltid produktägarens sektion.
 * Det ska gå att ta bort personal från ett initiativ i adminläget tills det inte finns någon personal kvar (eller tills initiativet tas bort).
