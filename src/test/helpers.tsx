@@ -71,6 +71,7 @@ export function resetStores() {
     view: 'estimate',
     sectionId: '',
     ownerId: '',
+    tajmaClass: '',
     adminTab: 'people',
     adminSort: DEFAULT_ADMIN_SORT,
   });

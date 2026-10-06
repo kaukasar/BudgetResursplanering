@@ -121,6 +121,39 @@ describe('arbetsläge', () => {
     expect(initiativeSection('Lager')).toHaveTextContent('Sara');
   });
 
+  it('filtrerar på tajmaklass till höger om produktägare, även initiativ utan tajmaklass', async () => {
+    let d = ops.updateInitiative(seed(), 'portal', { tajmaClass: 'IMM' });
+    d = ops.setEstimate(d, 'portal', 'anna', YEAR, 0, 10);
+    d = ops.setEstimate(d, 'app', 'anna', YEAR, 0, 20);
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp();
+
+    const filters = screen.getAllByRole('combobox').map((select) => select.getAttribute('aria-label'));
+    expect(filters.slice(1, 4)).toEqual(['Sektion', 'Produktägare', 'Tajmaklass']);
+    const tajma = screen.getByRole('combobox', { name: 'Tajmaklass' });
+    expect(
+      within(tajma)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Alla tajmaklasser', 'IMM', 'Vidareutveckling', 'Drift', 'Ingen tajmaklass']);
+
+    const regions = () => screen.queryAllByRole('region').map((r) => r.getAttribute('aria-label'));
+    await user.selectOptions(tajma, 'IMM');
+    expect(regions()).toEqual(['Initiativ Portal']);
+    // Nyckeltalen följer filtret: bara Portals 10 h.
+    expect(
+      screen.getByText(`Planerade timmar ${YEAR}`, { selector: '.stat .label' }).nextElementSibling,
+    ).toHaveTextContent('10 h');
+
+    await user.selectOptions(tajma, 'Ingen tajmaklass');
+    expect(regions()).toEqual(['Initiativ App']);
+
+    await user.selectOptions(tajma, 'Drift');
+    expect(regions()).toEqual([]);
+    expect(screen.getByText(`Det finns inga initiativ med tajmaklass Drift för ${YEAR}.`)).toBeInTheDocument();
+  });
+
   it('filtrerar på produktägare och år', async () => {
     const user = userEvent.setup();
     renderApp();

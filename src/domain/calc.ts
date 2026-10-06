@@ -2,6 +2,7 @@ import {
   EXTERNAL_STAFF,
   EXTERNAL_STAFF_ID,
   isExternal,
+  TAJMA_CLASSES,
   type AppData,
   type Initiative,
   type LockReason,
@@ -10,6 +11,7 @@ import {
   type MonthHours,
   type Person,
   type Settings,
+  type TajmaClass,
   type TimeMap,
   type Worker,
 } from './types';
@@ -165,21 +167,38 @@ export function lockedPersonIds(data: AppData, initiative: Initiative): string[]
     .map((worker) => worker.id);
 }
 
+/** Filter på tajmaklass: alla initiativ, en viss tajmaklass eller initiativ utan tajmaklass. */
+export const ALL_TAJMA_CLASSES = '';
+export const NO_TAJMA_CLASS = 'none';
+export type TajmaClassFilter = typeof ALL_TAJMA_CLASSES | typeof NO_TAJMA_CLASS | TajmaClass;
+
+export const isTajmaClassFilter = (value: unknown): value is TajmaClassFilter =>
+  value === ALL_TAJMA_CLASSES || value === NO_TAJMA_CLASS || TAJMA_CLASSES.includes(value as TajmaClass);
+
 export interface InitiativeFilter {
   year: number;
   /** Tom sträng = alla sektioner. */
   sectionId: string;
   /** Tom sträng = alla produktägare. */
   ownerId: string;
+  /** Utelämnat = alla tajmaklasser. */
+  tajmaClass?: TajmaClassFilter;
 }
 
-/** Initiativ som gäller året och, om angivet, tillhör sektionen och produktägaren. */
+function matchesTajmaClass(initiative: Initiative, filter: TajmaClassFilter): boolean {
+  if (filter === ALL_TAJMA_CLASSES) return true;
+  if (filter === NO_TAJMA_CLASS) return !initiative.tajmaClass;
+  return initiative.tajmaClass === filter;
+}
+
+/** Initiativ som gäller året och, om angivet, tillhör sektionen och produktägaren och har tajmaklassen. */
 export function filterInitiatives(data: AppData, filter: InitiativeFilter): Initiative[] {
   return data.initiatives.filter(
     (initiative) =>
       initiative.years.includes(filter.year) &&
       (!filter.sectionId || initiativeSectionId(data, initiative) === filter.sectionId) &&
-      (!filter.ownerId || initiative.productOwnerId === filter.ownerId),
+      (!filter.ownerId || initiative.productOwnerId === filter.ownerId) &&
+      matchesTajmaClass(initiative, filter.tajmaClass ?? ALL_TAJMA_CLASSES),
   );
 }
 

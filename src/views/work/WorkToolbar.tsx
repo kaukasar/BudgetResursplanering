@@ -1,4 +1,5 @@
-import type { ProductOwner, Section } from '../../domain/types';
+import { ALL_TAJMA_CLASSES, NO_TAJMA_CLASS, type TajmaClassFilter } from '../../domain/calc';
+import { TAJMA_CLASSES, type ProductOwner, type Section } from '../../domain/types';
 import { ALL_OWNERS, ALL_SECTIONS, useUiStore, type WorkView } from '../../store/ui';
 import { VIEW_LABEL } from './workViews';
 
@@ -7,14 +8,15 @@ interface Props {
   sections: Section[];
   /** Produktägare i vald sektion. */
   owners: ProductOwner[];
-  /** Vald sektion och produktägare efter kontroll att de finns kvar (annars "alla"). */
+  /** Vald sektion, produktägare och tajmaklass efter kontroll att de finns kvar (annars "alla"). */
   sectionId: string;
   ownerId: string;
+  tajmaClass: TajmaClassFilter;
 }
 
-/** Filter för år, sektion och produktägare samt val av vy (estimat, utfall, jämförelse). */
-export function WorkToolbar({ years, sections, owners, sectionId, ownerId }: Props) {
-  const { year, setYear, setSectionId, setOwnerId, view, setView } = useUiStore();
+/** Filter för år, sektion, produktägare och tajmaklass samt val av vy (estimat, utfall, jämförelse). */
+export function WorkToolbar({ years, sections, owners, sectionId, ownerId, tajmaClass }: Props) {
+  const { year, setYear, setSectionId, setOwnerId, setTajmaClass, view, setView } = useUiStore();
   const selectedSection = sections.find((section) => section.id === sectionId);
 
   return (
@@ -67,6 +69,23 @@ export function WorkToolbar({ years, sections, owners, sectionId, ownerId }: Pro
               {owner.name}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>Tajmaklass</span>
+        <select
+          className="select filter-select"
+          value={tajmaClass}
+          onChange={(e) => setTajmaClass(e.target.value as TajmaClassFilter)}
+          aria-label="Tajmaklass"
+        >
+          <option value={ALL_TAJMA_CLASSES}>Alla tajmaklasser</option>
+          {TAJMA_CLASSES.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+          <option value={NO_TAJMA_CLASS}>Ingen tajmaklass</option>
         </select>
       </label>
       <div className="field view-switch">
