@@ -29,9 +29,13 @@ export function SectionsAdmin() {
   const add = (e: FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return setAddError('Ange ett namn.');
-    addSection(newName);
-    setNewName('');
-    setAddError(null);
+    try {
+      addSection(newName);
+      setNewName('');
+      setAddError(null);
+    } catch (err) {
+      setAddError((err as Error).message);
+    }
   };
 
   const remove = async (section: Section) => {
@@ -141,8 +145,12 @@ function RenameSectionDialog({ section, onClose }: { section: Section; onClose: 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError('Ange ett namn.');
-    renameSection(section.id, name);
-    onClose();
+    try {
+      renameSection(section.id, name);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   return (

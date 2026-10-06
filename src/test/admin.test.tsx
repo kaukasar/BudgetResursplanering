@@ -320,6 +320,26 @@ describe('adminläge', () => {
     expect(names()).toEqual(['Cirkus', 'Portal', 'App']); // IMM, Drift, (tom) – tomt fortfarande sist
   });
 
+  it('visar ett felmeddelande när namnet redan finns, oavsett versaler och gemener', async () => {
+    const user = userEvent.setup();
+    renderApp('admin');
+
+    await user.click(screen.getByRole('tab', { name: /Sektioner/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Namn på ny sektion' }), 'sektion 1');
+    await user.click(screen.getByRole('button', { name: '+ Lägg till' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Det finns redan en sektion som heter "sektion 1".');
+    expect(useDataStore.getState().data.sections).toHaveLength(2);
+
+    await user.click(screen.getByRole('tab', { name: /Personal/ }));
+    await user.click(screen.getByRole('button', { name: '+ Ny person' }));
+    const dialog = topDialog();
+    await user.type(within(dialog).getByRole('textbox', { name: 'Namn' }), 'KALLE');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Sektion' }), 'Sektion 1');
+    await user.click(within(dialog).getByRole('button', { name: 'Skapa person' }));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Det finns redan en person som heter "KALLE".');
+    expect(useDataStore.getState().data.people).toHaveLength(2);
+  });
+
   it('fliken Export har bara export till Excel (CSV)', async () => {
     const user = userEvent.setup();
     renderApp('admin');

@@ -13,6 +13,7 @@ import {
   zeroMonths,
 } from './calc';
 import {
+  EXTERNAL_STAFF,
   EXTERNAL_STAFF_ID,
   isTajmaClass,
   LOCK_REASON_LABEL,
@@ -35,6 +36,28 @@ function requireName(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) throw new DomainError('Namn måste anges.');
   return trimmed;
+}
+
+/** Namn jämförs som i databasens unika index: utan omgivande blanksteg och utan hänsyn till versaler. */
+const nameKey = (name: string) => name.trim().toUpperCase();
+
+/**
+ * Namn är unika bland sektioner, aktiv personal, produktägare respektive initiativ. Ett namn som inte
+ * ändras godtas alltid, så att äldre data med dubbletter fortfarande går att redigera.
+ */
+function requireUniqueName(
+  name: string,
+  existing: readonly { id: string; name: string }[],
+  id: string,
+  what: string,
+): string {
+  const cleanName = requireName(name);
+  const current = existing.find((item) => item.id === id);
+  if (current && nameKey(current.name) === nameKey(cleanName)) return cleanName;
+  if (existing.some((item) => item.id !== id && nameKey(item.name) === nameKey(cleanName))) {
+    throw new DomainError(`Det finns redan ${what} som heter "${cleanName}".`);
+  }
+  return cleanName;
 }
 
 /** Appen hanterar bara heltal, både för tid och pengar. */
@@ -214,11 +237,12 @@ export function updateTypeSettings(data: AppData, type: PersonType, patch: Parti
 // ---------------------------------------------------------------- Sektioner
 
 export function addSection(data: AppData, section: Section): AppData {
-  return { ...data, sections: [...data.sections, { ...section, name: requireName(section.name) }] };
+  const name = requireUniqueName(section.name, data.sections, section.id, 'en sektion');
+  return { ...data, sections: [...data.sections, { ...section, name }] };
 }
 
 export function renameSection(data: AppData, id: string, name: string): AppData {
-  const cleanName = requireName(name);
+  const cleanName = requireUniqueName(name, data.sections, id, 'en sektion');
   return {
     ...data,
     sections: data.sections.map((section) => (section.id === id ? { ...section, name: cleanName } : section)),
@@ -285,9 +309,11 @@ export function deleteSection(data: AppData, id: string): AppData {
 
 function validatePerson(data: AppData, person: Person): Person {
   if (person.id === EXTERNAL_STAFF_ID) throw new DomainError('Id:t är reserverat för Extern personal.');
+  // Raderad personal räknas inte, så namnet kan användas igen. "Extern personal" är upptaget.
+  const takenNames = [...activePeople(data), EXTERNAL_STAFF];
   return {
     ...person,
-    name: requireName(person.name),
+    name: requireUniqueName(person.name, takenNames, person.id, 'en person'),
     sectionId: requireSection(data, person.sectionId),
     hourlyRate: optionalWholeNumber(person.hourlyRate, 'Timkostnad'),
     monthlyHours: optionalWholeNumber(person.monthlyHours, 'Arbetstid'),
@@ -337,7 +363,11 @@ export function initiativesLockedBySectionChange(data: AppData, personId: string
 // ---------------------------------------------------------------- Produktägare
 
 function validateOwner(data: AppData, owner: ProductOwner): ProductOwner {
-  return { ...owner, name: requireName(owner.name), sectionId: requireSection(data, owner.sectionId) };
+  return {
+    ...owner,
+    name: requireUniqueName(owner.name, data.productOwners, owner.id, 'en produktägare'),
+    sectionId: requireSection(data, owner.sectionId),
+  };
 }
 
 export function addProductOwner(data: AppData, owner: ProductOwner): AppData {
@@ -399,7 +429,7 @@ export function addInitiative(data: AppData, initiative: Initiative): AppData {
   requireLinkable(data, ownerSectionId(data, productOwnerId), personIds);
   const validated: Initiative = {
     ...initiative,
-    name: requireName(initiative.name),
+    name: requireUniqueName(initiative.name, data.initiatives, initiative.id, 'ett initiativ'),
     productOwnerId,
     personIds,
     years: normalizeYears(initiative.years),
@@ -427,7 +457,7 @@ export function updateInitiative(data: AppData, id: string, patch: Partial<Omit<
   const next: Initiative = {
     ...merged,
     id,
-    name: requireName(merged.name),
+    name: requireUniqueName(merged.name, data.initiatives, id, 'ett initiativ'),
     productOwnerId,
     personIds: [...requested, ...locked],
     years: normalizeYears(merged.years),

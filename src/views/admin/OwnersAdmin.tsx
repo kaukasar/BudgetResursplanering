@@ -40,9 +40,13 @@ export function OwnersAdmin() {
     e.preventDefault();
     if (!newName.trim()) return setAddError('Ange ett namn.');
     if (!sectionForNew) return setAddError('Välj en sektion.');
-    addProductOwner(newName, sectionForNew);
-    setNewName('');
-    setAddError(null);
+    try {
+      addProductOwner(newName, sectionForNew);
+      setNewName('');
+      setAddError(null);
+    } catch (err) {
+      setAddError((err as Error).message);
+    }
   };
 
   const remove = async (owner: ProductOwner) => {

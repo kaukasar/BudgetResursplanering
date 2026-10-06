@@ -1,9 +1,11 @@
 DATABASSCHEMA – BUDGET & RESURSPLANERING (ORACLE)
 ==================================================
 
-Lösningsförslag, ej implementerat. Datum: 2026-09-29.
-Underlag: kravspecifikationen i claude.md och appens nuvarande datamodell (src/domain/types.ts).
-Hänvisningar som "(3.4)" avser avsnitt i claude.md.
+Underlag för den som sätter upp databasen. Uppdaterad 2026-10-06.
+Status: schemat är beslutat men ännu inte byggt. Tabellerna skapas av Liquibase-skript som tas
+fram när backend byggs och som följer detta dokument (avsnitt 10).
+Underlag: kravspecifikationen i claude.md och appens datamodell (src/domain/types.ts).
+Hänvisningar som "(3.4)" avser avsnitt i claude.md. "Avsnitt 6" avser avsnitt i detta dokument.
 
 
 INNEHÅLL
@@ -15,64 +17,84 @@ INNEHÅLL
   6.  Beräknade värden och vyer
   7.  Index
   8.  Samtidig redigering
-  9.  Koppling till appens JSON-format (export och import)
-  10. Övergång från localStorage
+  9.  Koppling till appens datamodell
+  10. Installation och schemaändringar
   11. Övervägda alternativ
-  12. Öppna frågor
+  12. Öppna frågor och möjliga utökningar
 
 
 1. SAMMANFATTNING
 -----------------
 
 - Relationell, normaliserad modell med nio tabeller som speglar datamodellen i claude.md:
-    - två uppslagstabeller: PERSON_TYPE och TAJMA_CLASS
-    - fyra tabeller för stamdata: SECTION, PERSON, PRODUCT_OWNER och INITIATIVE
-    - två kopplingstabeller: INITIATIVE_YEAR och INITIATIVE_PERSON
-    - en tabell för tid: TIME_ENTRY.
+    - två uppslagstabeller: BRP_PERSON_TYPE och BRP_TAJMA_CLASS
+    - fyra tabeller för stamdata: BRP_SECTION, BRP_PERSON, BRP_PRODUCT_OWNER och BRP_INITIATIVE
+    - två kopplingstabeller: BRP_INITIATIVE_YEAR och BRP_INITIATIVE_PERSON
+    - en tabell för tid: BRP_TIME_ENTRY.
+- Alla objekt ligger i det delade schemat AISAPI och har prefixet BRP_ (avsnitt 2).
 - Estimat och utfall lagras på samma rad, en rad per initiativ, person, år och månad. Ett utfall
   utan värde (NULL) betyder "ej rapporterat", vilket skiljer sig från rapporterade 0 timmar.
 - Databasens främmande nycklar upprätthåller de flesta reglerna i kravspecen. Till exempel kan en
-  sektion med innehåll eller en produktägare med initiativ inte raderas, och estimat och utfall
-  försvinner automatiskt när en person eller ett år kopplas bort från ett initiativ.
+  sektion med personal eller produktägare inte raderas, en produktägare med initiativ kan inte
+  raderas, och estimat och utfall försvinner automatiskt när en person eller ett år kopplas bort
+  från ett initiativ.
 - Kostnader, budgetandelar, avvikelser och överallokering lagras inte utan beräknas i vyer. Skälet
   är att en ändrad timkostnad ska räkna om även historiskt utfall (5.1).
-- Appens JSON-format för export och import behålls, så att befintliga exportfiler kan läsas in i
-  databasen.
+- Schemat skapas och ändras med Liquibase (formaterad SQL). Databasen börjar tom, bortsett från
+  några systemrader. Det finns ingen befintlig data att flytta över.
 
 
 2. FÖRUTSÄTTNINGAR OCH DESIGNVAL
 --------------------------------
 
 Databasversion
-  Oracle Database 19c eller senare. Schemat använder bara standardfunktioner och fungerar
-  oförändrat i 23ai.
+  Oracle Database 19c Enterprise Edition. Schemat använder bara standardfunktioner: tabeller,
+  vyer, index (även funktionsbaserade) och constraints. Det behövs inga triggers, sekvenser eller
+  PL/SQL.
 
 Teckenuppsättning
   AL32UTF8 (Unicode), så att å, ä, ö och andra tecken lagras korrekt. Textlängder anges i tecken
   (CHAR-semantik) och inte i byte, så att 200 tecken är 200 tecken även med å, ä och ö.
 
+Schema och användare
+  Alla objekt skapas i det befintliga schemat AISAPI, som delas med andra applikationer. Backend
+  ansluter som AISAPI, dvs. schemats ägare. Inloggningsuppgifterna lagras som OpenShift Secrets
+  och finns aldrig i webbläsaren eller i källkoden. Appens användare loggar inte in i databasen.
+
+Anslutning
+  Endast produktionsmiljön (PROD). Inställningarna är konfigurerbara per miljö, så att fler miljöer
+  kan läggas till senare.
+  - Namnuppslagning via LDAP: alias LAP-AISDB-PROD, katalogserver
+    afkatalog.arbetsformedlingen.se:389, DEFAULT_ADMIN_CONTEXT "ou=WT,ou=oracle,o=AF,c=SE",
+    DIRECTORY_SERVER_TYPE OID. Uppgifterna ligger i en ldap.ora som backend läser via TNS_ADMIN.
+  - Ingen TCPS och ingen Wallet.
+  - Backend använder node-oracledb i Thick mode med Oracle Instant Client 23.26.2, eftersom
+    Thin mode inte stöder LDAP-uppslagning.
+
 Namngivning
+  - Eftersom schemat delas har alla objekt prefixet BRP_ (Budget & ResursPlanering): tabeller,
+    vyer, index, constraints och Liquibase egna tabeller.
   - Tabeller och kolumner har engelska namn i versaler med understreck och samma begrepp som
     appens källkod (Section, Person, ProductOwner, Initiative). Kopplingen mellan kod och databas
     blir då självklar, och å, ä och ö undviks i namnen.
   - Ord som Oracle använder som nyckelord (t.ex. YEAR och MONTH) används inte som kolumnnamn.
     Kolumnerna heter i stället CALENDAR_YEAR och CALENDAR_MONTH.
-  - Constraints och index får namn efter mönstret:
-        PK_<tabell>                        primärnyckel
-        FK_<tabell>_<refererad tabell>     främmande nyckel
-        CK_<tabell>_<kolumn>               kontrollvillkor
-        UQ_<tabell>_<kolumn>               unikt värde
-        IX_<tabell>_<kolumner>             index
+  - Constraints och index får namn efter mönstret nedan, där <tabell> är tabellnamnet utan
+    prefix:
+        BRP_PK_<tabell>                        primärnyckel, t.ex. BRP_PK_SECTION
+        BRP_FK_<tabell>_<refererad tabell>     främmande nyckel, t.ex. BRP_FK_PERSON_SECTION
+        BRP_CK_<tabell>_<kolumn>               kontrollvillkor, t.ex. BRP_CK_PERSON_SECTION_ID
+        BRP_UQ_<tabell>_<kolumn>               unikt värde, t.ex. BRP_UQ_SECTION_NAME
+        BRP_IX_<tabell>_<kolumner>             index, t.ex. BRP_IX_PERSON_SECTION
     Namnet står med i Oracles felmeddelanden, så backend kan översätta ett fel till en begriplig
-    svensk text.
+    svensk text. Alla namn ryms inom Oracles gräns på 128 tecken.
 
 Primärnycklar
   Id:n är text, VARCHAR2(64 CHAR), i stället för löpnummer. Skälen är:
-  - Appen skapar redan id:n (UUID), och de följer med i JSON-exporten.
-  - Äldre data har id:n som inte är UUID, t.ex. "standardsektion".
-  - Med samma id:n i databasen kan en exportfil importeras oförändrad, och id:n är stabila mellan
-    export och import.
-  Nya id:n är UUID. De skapas av backend eller, som i dag, av webbläsaren.
+  - Appens domänlager använder text-id:n överallt, och backend återanvänder det (5.2).
+  - Extern personal har ett fast id, 'extern', som gränssnittet känner igen, och uppslagstabellerna
+    använder koder ('employee', 'IMM' osv.) som primärnyckel.
+  Nya id:n är UUID och skapas av backend.
 
 Datatyper för tal
   Timmar per månad och arbetstid   NUMBER(6)      heltal, upp till 999 999 h
@@ -89,18 +111,13 @@ Datatyper för tal
 
 Datamängd
   Datamängden är liten (6). Med till exempel 50 initiativ som har i snitt 4 personer under 2 år
-  blir det högst 50 × 4 × 2 × 12 = 4 800 rader i TIME_ENTRY. Partitionering, komprimering och
+  blir det högst 50 × 4 × 2 × 12 = 4 800 rader i BRP_TIME_ENTRY. Partitionering, komprimering och
   liknande behövs inte.
 
 Spårbarhet
-  Stamdatatabellerna har kolumnerna CREATED_AT och UPDATED_AT. Vem som gjorde ändringen lagras
-  inte, eftersom appen saknar inloggning (6). Se även avsnitt 12.
-
-Behörighet
-  Tabellerna ägs av ett schema (t.ex. EKONOMI) som inte används i drift. Backend ansluter som en
-  separat användare (t.ex. EKONOMI_APP) som bara får läsa, lägga till, ändra och radera rader,
-  men inte ändra tabellstrukturen. Appens användare loggar inte in, men databasens
-  inloggningsuppgifter finns bara i backend och aldrig i webbläsaren.
+  Stamdatatabellerna har kolumnerna CREATED_AT och UPDATED_AT. Ändringshistorik lagras inte
+  (beslutat), och vem som gjorde en ändring lagras inte, eftersom appen saknar inloggning (6).
+  ROW_VERSION används bara för att upptäcka samtidiga ändringar (avsnitt 8).
 
 
 3. ÖVERSIKT (ER-DIAGRAM)
@@ -108,28 +125,31 @@ Behörighet
 
   Förklaring:  1 ---- *  = en till många      0..1 = frivillig koppling
 
-                                 SECTION
-                              1 /       \ 1
-                               /         \
-                            * /           \ *
-  PERSON_TYPE 1 -------- * PERSON      PRODUCT_OWNER
-                              | 1            | 1
-                              |              |
-                              |              | *
-                              |          INITIATIVE * -------- 0..1 TAJMA_CLASS
-                              |           1 /    \ 1
-                              |            /      \
-                              | *       * /        \ *
-                          INITIATIVE_PERSON      INITIATIVE_YEAR
-                              | 1                     | 1
-                              |                       |
-                              | *                     | *
-                              +------ TIME_ENTRY -----+
+                                   BRP_SECTION
+                              0..1 /         \ 1
+                                  /           \
+                               * /             \ *
+  BRP_PERSON_TYPE 1 ---- * BRP_PERSON      BRP_PRODUCT_OWNER
+                               | 1               | 1
+                               |                 |
+                               |                 | *
+                               |          BRP_INITIATIVE * ---- 0..1 BRP_TAJMA_CLASS
+                               |            1 /       \ 1
+                               |             /         \
+                               | *        * /           \ *
+                      BRP_INITIATIVE_PERSON          BRP_INITIATIVE_YEAR
+                               | 1                       | 1
+                               |                         |
+                               | *                       | *
+                               +----- BRP_TIME_ENTRY ----+
 
   - Ett initiativ har ingen egen koppling till en sektion. Sektionen följer av produktägaren:
-    INITIATIVE → PRODUCT_OWNER → SECTION.
-  - TIME_ENTRY hänger på både INITIATIVE_PERSON och INITIATIVE_YEAR. Tid kan därför bara finnas
-    för en person som är kopplad till initiativet, och bara för något av initiativets år.
+    BRP_INITIATIVE → BRP_PRODUCT_OWNER → BRP_SECTION.
+  - En person har normalt en sektion. Undantag är Extern personal och raderad personal vars
+    sektion har raderats (4.4).
+  - BRP_TIME_ENTRY hänger på både BRP_INITIATIVE_PERSON och BRP_INITIATIVE_YEAR. Tid kan därför
+    bara finnas för en person som är kopplad till initiativet, och bara för något av initiativets
+    år.
 
 
 4. TABELLER
@@ -137,12 +157,14 @@ Behörighet
 
 4.0 Gemensamma kolumner och regler
 
-  Stamdatatabellerna (PERSON_TYPE, SECTION, PERSON, PRODUCT_OWNER och INITIATIVE) har även:
+  Stamdatatabellerna (BRP_PERSON_TYPE, BRP_SECTION, BRP_PERSON, BRP_PRODUCT_OWNER och
+  BRP_INITIATIVE) har även:
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
-  CREATED_AT        TIMESTAMP WITH TIME ZONE  Nej   När raden skapades. Standard: aktuell tid.
-  UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring. Sätts av backend.
+  CREATED_AT        TIMESTAMP WITH TIME ZONE  Nej   När raden skapades. Standard: SYSTIMESTAMP.
+  UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring. Standard: SYSTIMESTAMP.
+                                                    Sätts av backend vid ändring.
   ROW_VERSION       NUMBER(10)                Nej   Versionsnummer för optimistisk låsning.
                                                     Börjar på 1 och räknas upp vid varje
                                                     ändring (avsnitt 8).
@@ -150,32 +172,39 @@ Behörighet
   Namnkolumner (NAME) är VARCHAR2(200 CHAR) och obligatoriska, med ett kontrollvillkor om att
   namnet inte får bestå av enbart blanksteg. I Oracle är en tom sträng detsamma som NULL, så
   kravet att kolumnen inte får vara NULL stoppar även tomma namn. Backend tar bort inledande och
-  avslutande blanksteg innan namnet sparas, precis som appen gör i dag. Namnen är unika i hela
-  systemet utan hänsyn till versaler och gemener: varje tabell får ett funktionsbaserat unikt index
-  på UPPER(TRIM(NAME)). För personal gäller det bara aktiv personal (se 4.4).
+  avslutande blanksteg innan namnet sparas, precis som appen gör i dag.
+
+  Namnen på sektioner, personal, produktägare och initiativ är unika inom respektive tabell, utan
+  hänsyn till versaler och gemener (beslutat). Varje sådan tabell får ett funktionsbaserat unikt
+  index på UPPER(TRIM(NAME)). För personal gäller det bara aktiv personal (se 4.4).
 
 
-4.1 PERSON_TYPE – personaltyp och globala standardvärden (2.2, 3.2)
+4.1 BRP_PERSON_TYPE – personaltyp och globala standardvärden (2.2, 3.2)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
-  CODE              VARCHAR2(20 CHAR)         Nej   Primärnyckel: 'employee' eller 'consultant',
-                                                    samma koder som i appen och JSON-filen.
-  LABEL             VARCHAR2(50 CHAR)         Nej   Visningsnamn: 'Anställd' eller 'Konsult'.
-  HOURLY_RATE       NUMBER(10)                Nej   Standardtimkostnad i SEK/h. Minst 0.
-  MONTHLY_HOURS     NUMBER(6)                 Nej   Normal arbetstid i timmar per månad. Minst 0.
+  CODE              VARCHAR2(20 CHAR)         Nej   Primärnyckel: 'employee', 'consultant' eller
+                                                    'external', samma koder som i appen.
+  LABEL             VARCHAR2(50 CHAR)         Nej   Visningsnamn: 'Anställd', 'Konsult' eller
+                                                    'Extern'.
+  HOURLY_RATE       NUMBER(10)                Ja    Standardtimkostnad i SEK/h. Minst 0.
+  MONTHLY_HOURS     NUMBER(6)                 Ja    Normal arbetstid i timmar per månad. Minst 0.
   + gemensamma kolumner
 
-  Tabellen har två rader för personaltyperna, som skapas vid installationen med appens
-  standardvärden: Anställd 625 kr/h och 160 h/mån, Konsult 1 130 kr/h och 160 h/mån. Backend
-  tillåter bara att värdena ändras, inte att typer läggs till eller tas bort. En tredje rad,
-  'external', används av Extern personal och saknar egna värden (se 4.4).
+  Tabellen har tre rader, som skapas vid installationen (10.2). Anställd och Konsult har appens
+  standardvärden: Anställd 625 kr/h och 160 h/mån, Konsult 1 130 kr/h och 160 h/mån. Raden
+  'external' används av Extern personal och saknar egna värden: timkostnaden räknas fram och
+  arbetstiden saknar tak (4.4). Kontrollvillkoret BRP_CK_PERSON_TYPE_VALUES kräver att
+  HOURLY_RATE och MONTHLY_HOURS är angivna för alla rader utom 'external', där de är NULL.
+
+  Backend tillåter bara att standardvärdena för Anställd och Konsult ändras, inte att typer läggs
+  till eller tas bort.
 
   Motivering: den globala inställningen per typ (3.2) är en egenskap hos typen. Samma tabell
   fungerar som uppslagstabell, så att en person bara kan få en giltig typ.
 
 
-4.2 TAJMA_CLASS – tillåtna tajmaklasser (2.4)
+4.2 BRP_TAJMA_CLASS – tillåtna tajmaklasser (2.4)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
@@ -183,34 +212,34 @@ Behörighet
                                                     'Drift'.
   SORT_ORDER        NUMBER(3)                 Nej   Ordning i listor: 1, 2, 3. Unik.
 
-  Tabellen har tre rader, som skapas vid installationen. Tomt värde har ingen egen rad utan lagras
-  som NULL i INITIATIVE.TAJMA_CLASS.
+  Tabellen har tre rader, som skapas vid installationen (10.2). Tomt värde har ingen egen rad utan
+  lagras som NULL i BRP_INITIATIVE.TAJMA_CLASS.
 
   Motivering: med en uppslagstabell i stället för ett kontrollvillkor kan en ny klass läggas till
   som en rad, utan att tabellstrukturen ändras. Gränssnittet har i dag en fast lista, som då också
   måste uppdateras eller hämtas från backend.
 
 
-4.3 SECTION – sektion (2.1, 3.1)
+4.3 BRP_SECTION – sektion (2.1, 3.1)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
   ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
-  NAME              VARCHAR2(200 CHAR)        Nej   Sektionens namn.
+  NAME              VARCHAR2(200 CHAR)        Nej   Sektionens namn. Unikt (4.0).
   + gemensamma kolumner
 
 
-4.4 PERSON – personal (2.2, 3.2)
+4.4 BRP_PERSON – personal (2.2, 3.2)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
   ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
-  NAME              VARCHAR2(200 CHAR)        Nej   Namn.
-  PERSON_TYPE       VARCHAR2(20 CHAR)         Nej   Främmande nyckel till PERSON_TYPE.CODE.
-  SECTION_ID        VARCHAR2(64 CHAR)         Ja    Hemsektion. Främmande nyckel till SECTION.ID,
-                                                    utan kaskad. NULL endast för Extern personal
-                                                    och för raderad personal vars sektion har
-                                                    raderats.
+  NAME              VARCHAR2(200 CHAR)        Nej   Namn. Unikt bland aktiv personal.
+  PERSON_TYPE       VARCHAR2(20 CHAR)         Nej   Främmande nyckel till BRP_PERSON_TYPE.CODE.
+  SECTION_ID        VARCHAR2(64 CHAR)         Ja    Hemsektion. Främmande nyckel till
+                                                    BRP_SECTION.ID, utan kaskad. NULL endast för
+                                                    Extern personal och för raderad personal
+                                                    vars sektion har raderats.
   HOURLY_RATE       NUMBER(10)                Ja    Egen timkostnad i SEK/h. NULL betyder att
                                                     typens standardvärde gäller. Minst 0.
   MONTHLY_HOURS     NUMBER(6)                 Ja    Egen arbetstid i h/mån. NULL betyder att
@@ -219,13 +248,23 @@ Behörighet
                                                     0 eller 1.
   + gemensamma kolumner
 
+  Kontrollvillkor
+    BRP_CK_PERSON_SECTION_ID   SECTION_ID IS NOT NULL OR PERSON_TYPE = 'external'
+                               OR IS_DELETED = 1
+    BRP_CK_PERSON_IS_DELETED   IS_DELETED IN (0, 1)
+    Samt minst 0 för HOURLY_RATE och MONTHLY_HOURS och kontrollen av NAME (4.0).
+
+  Unikt namn
+    BRP_UQ_PERSON_NAME är ett unikt index på CASE WHEN IS_DELETED = 0 THEN UPPER(TRIM(NAME)) END.
+    Rader där uttrycket är NULL, dvs. raderad personal, ingår inte i ett unikt index. Därför kan
+    en ny person få samma namn som en raderad. Systemraden för Extern personal är aktiv, så namnet
+    "Extern personal" är upptaget.
+
   Raderad personal (claude.md 2.8 och 3.2)
   Radering sätter IS_DELETED = 1: personen finns kvar så att den tid som redan registrerats kan
   visas och räknas, men tiden är låst och personen kan inte väljas igen. När ingen låst tid finns
-  kvar, t.ex. när initiativen med tiden har raderats, tar backend bort raden fysiskt. Annars skulle
-  personen ligga kvar i onödan. Namnet får användas av en ny person, så det unika indexet gäller
-  bara aktiv personal: UPPER(TRIM(NAME)) när IS_DELETED = 0, annars NULL (rader med NULL ingår
-  inte i ett unikt index).
+  kvar, t.ex. när initiativen med tiden har raderats, tar backend bort raden fysiskt. Saknar
+  personen tid redan när den raderas tas raden bort direkt.
 
   Raderad personal hindrar inte att sektionen raderas, även om den har låst tid (claude.md 3.1).
   När en sektion raderas sätter backend först SECTION_ID = NULL för raderad personal i sektionen,
@@ -236,80 +275,76 @@ Behörighet
   som saknar eget värde.
 
   Extern personal (claude.md 2.7)
-  Extern personal lagras som en fast systemrad i PERSON med ID 'extern' och typen 'external'. Då
-  fungerar INITIATIVE_PERSON och TIME_ENTRY oförändrade, med samma främmande nycklar och kaskader
-  som för övrig personal. Det kräver tre justeringar:
-  - PERSON_TYPE får en tredje rad, 'external' (Extern), där HOURLY_RATE och MONTHLY_HOURS är NULL:
-    timkostnaden räknas fram och arbetstiden saknar tak. Ett kontrollvillkor tillåter NULL endast
-    för den raden.
-  - PERSON.SECTION_ID får vara NULL, men ett kontrollvillkor tillåter det endast för typen
-    'external' och för raderad personal (IS_DELETED = 1), vars sektion kan ha raderats.
-  - Raden skapas vid installationen. Backend tillåter inte att den ändras eller raderas, och den
-    visas inte i personallistan.
+  Extern personal lagras som en fast systemrad i BRP_PERSON med ID 'extern', namnet
+  'Extern personal', typen 'external', SECTION_ID NULL och HOURLY_RATE och MONTHLY_HOURS NULL. Då
+  fungerar BRP_INITIATIVE_PERSON och BRP_TIME_ENTRY oförändrade, med samma främmande nycklar och
+  kaskader som för övrig personal. Raden skapas vid installationen (10.2). Backend tillåter inte
+  att den ändras eller raderas, och den visas inte i personallistan.
   Schablontimkostnaden, (anställds + konsults standardtimkostnad) / 2 avrundat till heltal, räknas
-  fram i V_PERSON_RATE (avsnitt 6). V_PERSON_MONTH_LOAD utesluter Extern personal, som aldrig kan
-  bli överallokerad.
+  fram i BRP_V_PERSON_RATE (avsnitt 6). BRP_V_PERSON_MONTH_LOAD utesluter Extern personal, som
+  aldrig kan bli överallokerad.
 
 
-4.5 PRODUCT_OWNER – produktägare (2.3, 3.3)
+4.5 BRP_PRODUCT_OWNER – produktägare (2.3, 3.3)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
   ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
-  NAME              VARCHAR2(200 CHAR)        Nej   Namn.
-  SECTION_ID        VARCHAR2(64 CHAR)         Nej   Främmande nyckel till SECTION.ID, utan kaskad.
+  NAME              VARCHAR2(200 CHAR)        Nej   Namn. Unikt (4.0).
+  SECTION_ID        VARCHAR2(64 CHAR)         Nej   Främmande nyckel till BRP_SECTION.ID, utan
+                                                    kaskad.
   + gemensamma kolumner
 
 
-4.6 INITIATIVE – initiativ (2.4, 3.4)
+4.6 BRP_INITIATIVE – initiativ (2.4, 3.4)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
   ID                VARCHAR2(64 CHAR)         Nej   Primärnyckel.
-  NAME              VARCHAR2(200 CHAR)        Nej   Namn.
-  PRODUCT_OWNER_ID  VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PRODUCT_OWNER.ID, utan
-                                                    kaskad.
+  NAME              VARCHAR2(200 CHAR)        Nej   Namn. Unikt (4.0).
+  PRODUCT_OWNER_ID  VARCHAR2(64 CHAR)         Nej   Främmande nyckel till BRP_PRODUCT_OWNER.ID,
+                                                    utan kaskad.
   INTERNAL_BUDGET   NUMBER(15)                Ja    Intern budget i SEK för initiativets alla år:
                                                     tid från personal i sektionen, även låst tid.
                                                     NULL = ingen. Större än 0 om angiven.
   EXTERNAL_BUDGET   NUMBER(15)                Ja    Extern budget i SEK för initiativets alla år:
                                                     tid från Extern personal. NULL = ingen.
                                                     Större än 0 om angiven.
-  TAJMA_CLASS       VARCHAR2(30 CHAR)         Ja    Främmande nyckel till TAJMA_CLASS.CODE.
+  TAJMA_CLASS       VARCHAR2(30 CHAR)         Ja    Främmande nyckel till BRP_TAJMA_CLASS.CODE.
                                                     NULL = tomt värde.
   + gemensamma kolumner
 
   Initiativet har medvetet ingen egen kolumn för sektion. Sektionen hämtas via produktägaren.
-  Därmed kan regeln att ett initiativ alltid tillhör produktägarens sektion aldrig brytas. När en
-  produktägare byter sektion följer initiativen med automatiskt (3.3), utan att någon rad ändras.
+  Därmed kan regeln att ett initiativ alltid tillhör produktägarens sektion aldrig brytas.
 
 
-4.7 INITIATIVE_YEAR – initiativets år (2.4)
+4.7 BRP_INITIATIVE_YEAR – initiativets år (2.4)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
-  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till INITIATIVE.ID, med
+  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till BRP_INITIATIVE.ID, med
                                                     kaskad.
   CALENDAR_YEAR     NUMBER(4)                 Nej   Kalenderår 1900–2200, samma gränser som appen.
 
   Primärnyckeln är (INITIATIVE_ID, CALENDAR_YEAR), så samma år kan inte anges två gånger.
 
 
-4.8 INITIATIVE_PERSON – personal kopplad till initiativ (2.4, 3.4)
+4.8 BRP_INITIATIVE_PERSON – personal kopplad till initiativ (2.4, 3.4)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
-  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till INITIATIVE.ID, med
+  INITIATIVE_ID     VARCHAR2(64 CHAR)         Nej   Främmande nyckel till BRP_INITIATIVE.ID, med
                                                     kaskad.
-  PERSON_ID         VARCHAR2(64 CHAR)         Nej   Främmande nyckel till PERSON.ID, utan kaskad
-                                                    (personal raderas aldrig fysiskt).
+  PERSON_ID         VARCHAR2(64 CHAR)         Nej   Främmande nyckel till BRP_PERSON.ID, utan
+                                                    kaskad. En person raderas fysiskt först när
+                                                    den saknar kopplingar (4.4).
 
   Primärnyckeln är (INITIATIVE_ID, PERSON_ID), så en person kan inte kopplas två gånger till
   samma initiativ. Personal kan bara kopplas till initiativ i sin egen sektion. Om tiden är låst,
   dvs. personen har bytt sektion eller är raderad (claude.md 2.8), beräknas och lagras inte.
 
 
-4.9 TIME_ENTRY – estimat och utfall (2.5, 2.6)
+4.9 BRP_TIME_ENTRY – estimat och utfall (2.5, 2.6)
 
   Kolumn            Datatyp                   Null  Beskrivning
   ----------------  ------------------------  ----  ------------------------------------------------
@@ -321,12 +356,12 @@ Behörighet
   ESTIMATED_HOURS   NUMBER(6)                 Nej   Estimat (planerad tid). Standard 0. Minst 0.
   ACTUAL_HOURS      NUMBER(6)                 Ja    Utfall (faktisk tid). NULL = ej rapporterat,
                                                     0 = rapporterade 0 timmar. Minst 0.
-  UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring.
+  UPDATED_AT        TIMESTAMP WITH TIME ZONE  Nej   Senaste ändring. Standard: SYSTIMESTAMP.
 
   Primärnyckeln är (INITIATIVE_ID, PERSON_ID, CALENDAR_YEAR, CALENDAR_MONTH).
   Tabellen har två främmande nycklar, båda med kaskad:
-    (INITIATIVE_ID, PERSON_ID)      → INITIATIVE_PERSON
-    (INITIATIVE_ID, CALENDAR_YEAR)  → INITIATIVE_YEAR
+    BRP_FK_TIME_ENTRY_INITIATIVE_PERSON   (INITIATIVE_ID, PERSON_ID)     → BRP_INITIATIVE_PERSON
+    BRP_FK_TIME_ENTRY_INITIATIVE_YEAR     (INITIATIVE_ID, CALENDAR_YEAR) → BRP_INITIATIVE_YEAR
 
   Glesa rader: en rad finns bara för månader som har ett estimat över 0 eller ett rapporterat
   utfall. En saknad rad betyder 0 timmar estimat och inget rapporterat utfall, vilket är samma
@@ -348,8 +383,9 @@ Behörighet
 5.1 Regler som databasen garanterar
 
   1. Personal och produktägare tillhör exakt en sektion (5.3).
-     → SECTION_ID är en främmande nyckel. Den är obligatorisk för produktägare och, genom ett
-       kontrollvillkor, för aktiv personal (undantag: Extern personal och raderad personal).
+     → SECTION_ID är en främmande nyckel. Den är obligatorisk för produktägare och, genom
+       BRP_CK_PERSON_SECTION_ID, för aktiv personal (undantag: Extern personal och raderad
+       personal).
   2. Ett initiativ har exakt en produktägare (5.3).
      → PRODUCT_OWNER_ID är obligatorisk och en främmande nyckel.
   3. Ett initiativ tillhör produktägarens sektion (2.4).
@@ -362,23 +398,24 @@ Behörighet
   6. Ett initiativ kan raderas oavsett innehåll (3.4).
      → Kaskad: initiativets år och kopplad personal raderas och därmed all tid.
   7. När en person raderas finns personens tid kvar (claude.md 2.8 och 3.2).
-     → Personen markeras med IS_DELETED = 1. Saknar personen tid, eller försvinner den sista
-       tiden senare, raderar backend raden fysiskt i samma transaktion.
+     → Personen markeras med IS_DELETED = 1. En person med kopplingar kan inte raderas fysiskt
+       (främmande nyckel utan kaskad från BRP_INITIATIVE_PERSON).
   8. När en person eller ett år tas bort från ett initiativ raderas estimat och utfall (3.4).
-     → Kaskad från INITIATIVE_PERSON respektive INITIATIVE_YEAR till TIME_ENTRY.
+     → Kaskad från BRP_INITIATIVE_PERSON respektive BRP_INITIATIVE_YEAR till BRP_TIME_ENTRY.
   9. Tid kan bara registreras för en person som är kopplad till initiativet och för något av
      initiativets år (2.6).
-     → TIME_ENTRY:s två sammansatta främmande nycklar.
+     → BRP_TIME_ENTRY:s två sammansatta främmande nycklar.
   10. En person kopplas högst en gång per initiativ, och ett år anges högst en gång.
-     → Primärnycklarna i INITIATIVE_PERSON och INITIATIVE_YEAR.
+     → Primärnycklarna i BRP_INITIATIVE_PERSON och BRP_INITIATIVE_YEAR.
   11. Följande värden kontrolleras (2.2–2.6):
       - timmar, timkostnad och arbetstid är minst 0
       - intern och extern budget är större än 0 när de anges
       - år ligger mellan 1900 och 2200 och månad mellan 1 och 12
       - typ och tajmaklass har giltiga värden.
      → Kontrollvillkor och främmande nycklar.
-  12. Namn får inte vara tomma.
-     → Obligatorisk kolumn och kontrollvillkor.
+  12. Namn får inte vara tomma, och namnen på sektioner, aktiv personal, produktägare och
+      initiativ är unika utan hänsyn till versaler och gemener.
+     → Obligatorisk kolumn, kontrollvillkor och funktionsbaserade unika index (4.0 och 4.4).
   13. Ett ej rapporterat utfall skiljer sig från rapporterade 0 timmar (2.6).
      → ACTUAL_HOURS är NULL respektive 0.
 
@@ -389,30 +426,36 @@ Behörighet
 
   - Ett initiativ måste gälla minst ett år (2.4). Backend kontrollerar det i samma transaktion som
     initiativet och dess år sparas.
-  - Ett nytt initiativ måste ha minst en person kopplad. Ett befintligt initiativ får däremot sakna
-    personal (5.3).
+  - Ett nytt initiativ måste ha minst en person kopplad, utöver Extern personal. Ett befintligt
+    initiativ får däremot sakna personal (5.3).
   - Ett befintligt initiativ får bara byta till en produktägare i samma sektion (3.4).
   - Personal kan bara kopplas till initiativ i sin egen sektion, och raderad personal kan inte
     kopplas alls (claude.md 5.3).
   - Låst tid (personen har bytt sektion eller är raderad, claude.md 2.8) kan inte ändras, och ny
-    tid kan inte registreras för den. Kopplingar som blir låsta utan registrerad tid tas bort.
+    tid kan inte registreras för den. En låst koppling utan registrerad tid tas bort, både när den
+    blir låst och när dess tid försvinner, t.ex. när året med tiden tas bort från initiativet.
+  - Raderad personal utan kopplingar tas bort fysiskt i samma transaktion som ändringen som tog
+    bort den sista kopplingen (4.4). Därmed kan all data alltid raderas manuellt: först personal
+    och initiativ, sedan produktägare och till sist sektioner (claude.md 2.8).
   - En produktägare med initiativ kan inte byta sektion eller raderas förrän initiativen har fått
     en ny produktägare i samma sektion (claude.md 3.3).
-  - En sektion får bara raderas när den saknar personal och produktägare. Raderad personal, även
-    med låst tid, hindrar inte raderingen utan blir utan sektion. Innehållet flyttas med "Flytta
-    allt": personal, produktägare och initiativ tillsammans (claude.md 3.1).
-  - Raderad personal utan låst tid tas bort fysiskt, så att all data alltid kan raderas manuellt:
-    först personal och initiativ, sedan produktägare och till sist sektioner (claude.md 2.8).
+  - En sektion får bara raderas när den saknar aktiv personal och produktägare. Raderad personal,
+    även med låst tid, hindrar inte raderingen utan blir utan sektion (4.4). Innehållet flyttas
+    med "Flytta allt": personal (även raderad), produktägare och därmed initiativ tillsammans, i
+    en transaktion (claude.md 3.1).
+  - Namn som redan finns kontrolleras av backend i förväg, så att användaren får ett begripligt
+    meddelande. Det unika indexet skyddar om kontrollen skulle missas.
   - Raderingar som databasen avvisar (regel 4 och 5 ovan) kontrolleras av backend i förväg. Backend
     skickar då med listan över berörd personal, berörda produktägare eller initiativ, så att
     gränssnittet kan visa den som i dag. Databasens constraint skyddar om kontrollen skulle missas.
   - Bekräftelsedialogen visar hur många timmar estimat och utfall som försvinner (3.4). Siffrorna
-    räknas fram genom att summera i TIME_ENTRY före raderingen.
-  - Att flytta allt innehåll från en sektion till en annan (3.1) görs i en transaktion.
+    räknas fram genom att summera i BRP_TIME_ENTRY före raderingen.
+  - Systemraden för Extern personal och raderna i uppslagstabellerna kan inte läggas till, tas
+    bort eller (utom standardvärdena för Anställd och Konsult) ändras.
 
-  Rekommendation: lägg dessa regler i backendens domänlager och inte i triggers, så att varje
-  regel finns på ett ställe. Skrivs backend i TypeScript (Node.js) kan appens befintliga domänlager
-  (src/domain) återanvändas för valideringen.
+  Reglerna ligger i backendens domänlager och inte i triggers, så att varje regel finns på ett
+  ställe. Backend skrivs i TypeScript (Node.js) och återanvänder appens befintliga domänlager
+  (src/domain) för valideringen.
 
 
 6. BERÄKNADE VÄRDEN OCH VYER
@@ -430,33 +473,35 @@ Skälet är att timkostnaden alltid är den aktuella. Ändras den ska även hist
 (5.1). Lagrade kostnader skulle behöva uppdateras i många rader vid varje ändring och riskera att
 bli inaktuella. Datamängden är liten, så beräkningarna går snabbt.
 
-Förslag på vyer (skrivskyddade). De kan användas av backend, till CSV-exporten och till framtida
-rapporter, t.ex. i Excel eller Power BI direkt mot databasen.
+Förslag på vyer (skrivskyddade). De kan användas av backend, till CSV-exporten (3.5) och till
+framtida rapporter, t.ex. i Excel eller Power BI direkt mot databasen.
 
-  V_PERSON_RATE
+  BRP_V_PERSON_RATE
     En rad per person med den timkostnad och arbetstid som gäller, och om värdet är personens eget
-    eller typens standardvärde.
+    eller typens standardvärde. För Extern personal är timkostnaden schablonen (4.4) och
+    arbetstiden NULL.
 
-  V_TIME_ANALYSIS
+  BRP_V_TIME_ANALYSIS
     En rad per initiativ, kopplad person, år och månad (1–12), även för månader utan registrerad
     tid. Raderna bildas av kopplade personer × initiativets år × tolv månader. Värden från
-    TIME_ENTRY läggs till där de finns. En saknad rad betyder estimat 0 och ej rapporterat utfall.
-    Vyn innehåller:
+    BRP_TIME_ENTRY läggs till där de finns. En saknad rad betyder estimat 0 och ej rapporterat
+    utfall. Vyn innehåller:
       - sektion, produktägare, initiativ och person
-      - personens hemsektion och typ
+      - personens hemsektion (yttre koppling, eftersom den kan saknas), typ och om personen är
+        raderad
       - estimat, utfall och avvikelse
       - timkostnad, estimerad kostnad och utfallskostnad.
     Utfall, avvikelse och utfallskostnad är NULL när inget utfall är rapporterat. Tillsammans med
-    V_PERSON_MONTH_LOAD ger vyn alla kolumner i CSV-exporten (3.5).
+    BRP_V_PERSON_MONTH_LOAD ger vyn alla kolumner i CSV-exporten (3.5).
 
-  V_PERSON_MONTH_LOAD
-    En rad per person, år och månad. Vyn innehåller:
+  BRP_V_PERSON_MONTH_LOAD
+    En rad per person, år och månad, utom för Extern personal. Vyn innehåller:
       - summan av estimat och summan av utfall i alla initiativ, oavsett sektion (5.2)
       - personens arbetstid
       - markering för överallokering, dvs. att summan är större än arbetstiden, för estimat
         respektive utfall.
 
-  V_INITIATIVE_BUDGET
+  BRP_V_INITIATIVE_BUDGET
     En rad per initiativ och budgetdel (intern eller extern) som initiativet har. Vyn innehåller
     budgetdelen, beloppet, den estimerade kostnaden och utfallskostnaden för initiativets alla år
     samt andelen av budgeten i procent för båda. Den interna delen räknar kostnaden för all
@@ -470,25 +515,34 @@ rapporter, t.ex. i Excel eller Power BI direkt mot databasen.
 Oracle skapar automatiskt index för primärnycklar, men inte för främmande nycklar. Utan index på
 en främmande nyckel låser Oracle hela barntabellen när en rad i föräldratabellen raderas, och
 kaskadraderingar går långsammare. Därför indexeras alla främmande nycklar, utom de som pekar på
-uppslagstabellerna PERSON_TYPE och TAJMA_CLASS, vars rader aldrig raderas.
+uppslagstabellerna BRP_PERSON_TYPE och BRP_TAJMA_CLASS, vars rader aldrig raderas.
 
-  IX_PERSON_SECTION              PERSON (SECTION_ID)
+  BRP_IX_PERSON_SECTION              BRP_PERSON (SECTION_ID)
       Främmande nyckel. Personal per sektion, t.ex. i adminläget och vid radering av en sektion.
-  IX_PRODUCT_OWNER_SECTION       PRODUCT_OWNER (SECTION_ID)
+  BRP_IX_PRODUCT_OWNER_SECTION       BRP_PRODUCT_OWNER (SECTION_ID)
       Främmande nyckel. Produktägare per sektion, t.ex. för sektionsfiltret.
-  IX_INITIATIVE_PRODUCT_OWNER    INITIATIVE (PRODUCT_OWNER_ID)
+  BRP_IX_INITIATIVE_PRODUCT_OWNER    BRP_INITIATIVE (PRODUCT_OWNER_ID)
       Främmande nyckel. Initiativ per produktägare, t.ex. för produktägarfiltret.
-  IX_INITIATIVE_YEAR_YEAR        INITIATIVE_YEAR (CALENDAR_YEAR)
+  BRP_IX_INITIATIVE_YEAR_YEAR        BRP_INITIATIVE_YEAR (CALENDAR_YEAR)
       Initiativ per år, för årsväljaren i arbetsläget.
-  IX_INITIATIVE_PERSON_PERSON    INITIATIVE_PERSON (PERSON_ID)
+  BRP_IX_INITIATIVE_PERSON_PERSON    BRP_INITIATIVE_PERSON (PERSON_ID)
       Främmande nyckel. En persons initiativ, i adminlistan och vid radering av en person.
-  IX_TIME_ENTRY_INITIATIVE_YEAR  TIME_ENTRY (INITIATIVE_ID, CALENDAR_YEAR)
-      Främmande nyckel till INITIATIVE_YEAR. Ett initiativs tid för valt år (initiativtabellen).
-  IX_TIME_ENTRY_PERSON_PERIOD    TIME_ENTRY (PERSON_ID, CALENDAR_YEAR, CALENDAR_MONTH)
+  BRP_IX_TIME_ENTRY_INITIATIVE_YEAR  BRP_TIME_ENTRY (INITIATIVE_ID, CALENDAR_YEAR)
+      Främmande nyckel till BRP_INITIATIVE_YEAR. Ett initiativs tid för valt år.
+  BRP_IX_TIME_ENTRY_PERSON_PERIOD    BRP_TIME_ENTRY (PERSON_ID, CALENDAR_YEAR, CALENDAR_MONTH)
       En persons totala tid per månad i alla initiativ, för kapacitetskontrollen (5.2).
 
-Primärnycklarna täcker de övriga främmande nycklarna. INITIATIVE_YEAR och INITIATIVE_PERSON
-börjar med INITIATIVE_ID, och TIME_ENTRY börjar med (INITIATIVE_ID, PERSON_ID).
+Primärnycklarna täcker de övriga främmande nycklarna. BRP_INITIATIVE_YEAR och
+BRP_INITIATIVE_PERSON börjar med INITIATIVE_ID, och BRP_TIME_ENTRY börjar med
+(INITIATIVE_ID, PERSON_ID).
+
+Unika, funktionsbaserade index för namn (4.0):
+
+  BRP_UQ_SECTION_NAME          BRP_SECTION (UPPER(TRIM(NAME)))
+  BRP_UQ_PERSON_NAME           BRP_PERSON (CASE WHEN IS_DELETED = 0 THEN UPPER(TRIM(NAME)) END)
+  BRP_UQ_PRODUCT_OWNER_NAME    BRP_PRODUCT_OWNER (UPPER(TRIM(NAME)))
+  BRP_UQ_INITIATIVE_NAME       BRP_INITIATIVE (UPPER(TRIM(NAME)))
+  BRP_UQ_TAJMA_CLASS_SORT      BRP_TAJMA_CLASS (SORT_ORDER)
 
 
 8. SAMTIDIG REDIGERING
@@ -510,59 +564,80 @@ data samtidigt. Schemat hanterar det så här:
     databasen ska varje ändring sparas för sig, t.ex. en cell, en person eller ett initiativ.
     Annars skriver användarna över varandras ändringar.
   - Ändringar som berör flera tabeller görs i en transaktion. Det gäller t.ex. att skapa eller ändra
-    ett initiativ med personal och år, att flytta innehåll mellan sektioner, att radera och att
-    importera.
+    ett initiativ med personal och år, att flytta innehåll mellan sektioner och att radera.
   - Hur andra användares ändringar ska visas (omladdning eller regelbunden hämtning) bestäms i
     backend och gränssnitt och påverkar inte schemat.
 
 
-9. KOPPLING TILL APPENS JSON-FORMAT (EXPORT OCH IMPORT)
--------------------------------------------------------
+9. KOPPLING TILL APPENS DATAMODELL
+----------------------------------
 
-  JSON (AppData)                                   Databas
+Backend översätter mellan databasen och appens datamodell (AppData i src/domain/types.ts):
+
+  Appen (AppData)                                  Databas
   -----------------------------------------------  --------------------------------------------
-  settings.employee, settings.consultant           PERSON_TYPE (CODE 'employee', 'consultant')
-  sections[]                                       SECTION
-  people[]                                         PERSON (hourlyRate och monthlyHours: null
-                                                   blir NULL)
-  productOwners[]                                  PRODUCT_OWNER
-  initiatives[]                                    INITIATIVE (internalBudget, externalBudget
-                                                   och tajmaClass: null blir NULL; en äldre
-                                                   "budget" blir INTERNAL_BUDGET)
-  initiatives[].years[]                            INITIATIVE_YEAR
-  initiatives[].personIds[]                        INITIATIVE_PERSON (id:t 'extern' pekar på
+  settings.employee, settings.consultant           BRP_PERSON_TYPE (CODE 'employee',
+                                                   'consultant')
+  sections[]                                       BRP_SECTION
+  people[]                                         BRP_PERSON (hourlyRate och monthlyHours: null
+                                                   blir NULL; deleted: true blir IS_DELETED = 1;
+                                                   sectionId: null blir NULL)
+  productOwners[]                                  BRP_PRODUCT_OWNER
+  initiatives[]                                    BRP_INITIATIVE (internalBudget, externalBudget
+                                                   och tajmaClass: null blir NULL)
+  initiatives[].years[]                            BRP_INITIATIVE_YEAR
+  initiatives[].personIds[]                        BRP_INITIATIVE_PERSON (id:t 'extern' pekar på
                                                    systemraden för Extern personal)
-  estimates[initiativ][person][år][månad 0–11]     TIME_ENTRY.ESTIMATED_HOURS
+  estimates[initiativ][person][år][månad 0–11]     BRP_TIME_ENTRY.ESTIMATED_HOURS
                                                    (CALENDAR_MONTH = månad + 1)
-  actuals[initiativ][person][år][månad 0–11]       TIME_ENTRY.ACTUAL_HOURS (null blir NULL)
+  actuals[initiativ][person][år][månad 0–11]       BRP_TIME_ENTRY.ACTUAL_HOURS (null blir NULL)
 
-Export
-  Backend läser tabellerna och bygger samma JSON som appen exporterar i dag (format
-  "ekonomi-budget", version 1). Backupfiler fungerar därför som tidigare.
+  Systemraden för Extern personal och raden 'external' i BRP_PERSON_TYPE ingår inte i people[]
+  eller settings. Appen känner igen Extern personal på id:t 'extern'.
 
-Import, som ersätter all data (3.5). Allt görs i en transaktion:
-  1. Filen valideras och äldre format migreras som i dag (parseAppData). Det gäller t.ex. data
-     utan sektioner, "hours" i stället för "estimates" och data utan utfall. Valideringen tar redan
-     bort tid för personer och år som inte är kopplade till initiativet, så att datan uppfyller
-     databasens främmande nycklar.
-  2. All befintlig data raderas i ordningen initiativ, produktägare, personal och sektioner.
-     Kaskaderna tar med sig tid, kopplingar och år.
-  3. PERSON_TYPE uppdateras med filens inställningar.
-  4. Datan läggs in i ordningen SECTION, PERSON, PRODUCT_OWNER, INITIATIVE, INITIATIVE_YEAR,
-     INITIATIVE_PERSON och TIME_ENTRY. Bara månader med estimat över 0 eller rapporterat utfall
-     blir rader.
-  5. Vid fel rullas allt tillbaka, och den befintliga datan är orörd.
+  Appen har ingen export eller import av data i JSON-format (3.5). Den enda exporten är
+  CSV-filen för Excel.
 
 
-10. ÖVERGÅNG FRÅN LOCALSTORAGE
-------------------------------
+10. INSTALLATION OCH SCHEMAÄNDRINGAR
+------------------------------------
 
-  - Datan finns i dag i varje användares webbläsare. Välj den webbläsare vars data ska gälla,
-    exportera JSON från fliken Data och importera filen via backend.
-  - Om flera personer har olika data i sina webbläsare måste den slås ihop manuellt före importen,
-    eftersom en import ersätter all data.
-  - Vyinställningarna (läge, flik, sortering, år, vy och filter) är personliga och kan ligga kvar i
-    webbläsarens localStorage. De hör inte hemma i databasen.
+10.1 Liquibase
+  - Tabeller, vyer, index och systemrader skapas och ändras med Liquibase. Ändringarna skrivs som
+    formaterad SQL (Liquibase "formatted SQL") och ligger i appens repo tillsammans med backend.
+    Skripten följer detta dokument och tas fram när backend byggs.
+  - Liquibase egna tabeller får prefixet, så att de inte krockar med andra applikationer i AISAPI:
+    BRP_DATABASECHANGELOG och BRP_DATABASECHANGELOGLOCK (Liquibase-parametrarna
+    databaseChangeLogTableName och databaseChangeLogLockTableName).
+  - Samma skript körs i de automatiska testerna mot Oracle Database Free och i produktion, så att
+    det som testas är det som installeras.
+  - Varje ändring av schemat är ett nytt changeset. Ett changeset som redan har körts ändras
+    aldrig i efterhand.
+
+10.2 Systemrader
+  Skapas av Liquibase vid installationen:
+  - BRP_PERSON_TYPE: 'employee' (Anställd, 625 kr/h, 160 h/mån), 'consultant' (Konsult,
+    1 130 kr/h, 160 h/mån) och 'external' (Extern, utan värden).
+  - BRP_TAJMA_CLASS: 'IMM' (1), 'Vidareutveckling' (2) och 'Drift' (3).
+  - BRP_PERSON: Extern personal med ID 'extern' (4.4).
+  Övriga tabeller börjar tomma. Det finns ingen befintlig data att flytta över: data uppstår först
+  när appen tas i drift. Vyinställningar (läge, flik, sortering, år, vy och filter) är personliga
+  och ligger kvar i webbläsarens localStorage. De hör inte hemma i databasen.
+
+10.3 Behörigheter
+  Liquibase och backend använder användaren AISAPI, som äger schemat. AISAPI behöver:
+  - CREATE TABLE och CREATE VIEW (index skapas i det egna schemat utan särskild behörighet)
+  - kvot (QUOTA) i sitt standardtabellutrymme för tabellerna och indexen.
+  Det behövs inga sekvenser, triggers, procedurer eller behörigheter i andra scheman.
+
+10.4 Objekt som skapas
+  Tabeller   BRP_PERSON_TYPE, BRP_TAJMA_CLASS, BRP_SECTION, BRP_PERSON, BRP_PRODUCT_OWNER,
+             BRP_INITIATIVE, BRP_INITIATIVE_YEAR, BRP_INITIATIVE_PERSON, BRP_TIME_ENTRY
+  Vyer       BRP_V_PERSON_RATE, BRP_V_TIME_ANALYSIS, BRP_V_PERSON_MONTH_LOAD,
+             BRP_V_INITIATIVE_BUDGET
+  Index      se avsnitt 7, samt primärnycklarnas index
+  Liquibase  BRP_DATABASECHANGELOG, BRP_DATABASECHANGELOGLOCK
+  Inga objekt utan prefixet BRP_ skapas i AISAPI.
 
 
 11. ÖVERVÄGDA ALTERNATIV
@@ -583,40 +658,39 @@ Import, som ersätter all data (3.5). Allt görs i en transaktion:
      alla initiativ (kapacitetskontrollen) och att filtrera på period. Avfärdat.
 
   d) Löpnummer (IDENTITY) som primärnyckel.
-     Det är kompaktare, men varje export och import skulle behöva översätta mellan appens id:n och
-     databasens. Löpnummer kan läggas till senare som intern nyckel om behovet uppstår.
+     Det är kompaktare, men appens domänlager använder text-id:n och Extern personal har ett fast
+     id, så backend skulle behöva översätta mellan id:n i varje anrop. Löpnummer kan läggas till
+     senare som intern nyckel om behovet uppstår.
 
   e) Affärsregler i triggers och PL/SQL.
-     Då samlas allt i databasen, men logiken delas upp mellan databas och backend. Se
-     rekommendationen i avsnitt 5.2.
+     Då samlas allt i databasen, men logiken delas upp mellan databas och backend. Se avsnitt 5.2.
 
-  f) Funktioner i Oracle 23ai.
-     JSON-relationella dualitetsvyer (JSON Relational Duality Views) kan visa tabellerna som
-     JSON-dokument i appens format och skulle kunna förenkla export och import. De behövs inte,
-     och schemat fungerar likadant utan dem.
+  f) Ändringshistorik i en loggtabell eller med Oracle Flashback Data Archive.
+     Avfärdat (beslutat): ingen historik behövs, och utan inloggning kan det ändå inte registreras
+     vem som ändrade. Kan läggas till senare utan att befintliga tabeller ändras.
 
 
-12. ÖPPNA FRÅGOR
-----------------
+12. ÖPPNA FRÅGOR OCH MÖJLIGA UTÖKNINGAR
+---------------------------------------
 
-Följande beslut påverkar schemat och bör tas innan det byggs.
+Öppna frågor som behöver besked före driftstart:
 
-  1. Ändringshistorik
-     Ska det gå att se när ett estimat eller utfall ändrades och vad det var före ändringen? Utan
-     inloggning kan det inte registreras vem som ändrade. Historik kan läggas till senare utan att
-     befintliga tabeller ändras, antingen med en loggtabell för tidsändringar eller med Oracle
-     Flashback Data Archive.
+  1. Hur Liquibase körs i produktion, t.ex. som ett steg i Tekton-pipelinen före utrullningen med
+     Argo CD. Bestäms tillsammans med DevOps.
+  2. Om det finns en reservanslutning utan LDAP (EZConnect: värd, port och tjänstenamn), ifall
+     LDAP-uppslagningen inte fungerar från OpenShift-podden.
 
-  2. Låsta perioder
-     Du har nämnt att tidigare år kanske ska låsas i framtiden. Det kan läggas till med en tabell
-     eller inställning för vilka perioder som är låsta, utan att befintliga tabeller ändras.
+Möjliga utökningar, som kan läggas till utan att befintliga tabeller ändras:
 
-  3. Timkostnad över tid
-     I dag räknas historiskt utfall om när timkostnaden ändras, enligt ditt beslut. Om kostnaden i
-     framtiden ska följa den timkostnad som gällde vid tillfället behövs en tabell med timkostnad
-     per person och giltighetsperiod. Eftersom kostnader bara beräknas i vyerna blir det en
-     avgränsad ändring.
+  1. Låsta perioder
+     Tidigare år kan behöva låsas för ändringar. Det kan göras med en tabell eller inställning för
+     vilka perioder som är låsta.
 
-  4. Import från tidrapporteringssystemet
-     Om importen införs föreslås en separat tabell för mellanlagring av inlästa rader. Raderna
-     kontrolleras där innan de förs över till TIME_ENTRY.
+  2. Timkostnad över tid
+     I dag räknas historiskt utfall om när timkostnaden ändras (beslutat). Om kostnaden i stället
+     ska följa den timkostnad som gällde vid tillfället behövs en tabell med timkostnad per person
+     och giltighetsperiod. Eftersom kostnader bara beräknas i vyerna blir det en avgränsad ändring.
+
+  3. Import från tidrapporteringssystemet
+     Om en import införs föreslås en separat tabell för mellanlagring av inlästa rader. Raderna
+     kontrolleras där innan de förs över till BRP_TIME_ENTRY.

@@ -25,6 +25,57 @@ describe('heltal', () => {
   });
 });
 
+describe('unika namn', () => {
+  const person = (id: string, name: string) => ({
+    id,
+    name,
+    type: 'employee' as const,
+    sectionId: 's1',
+    hourlyRate: null,
+    monthlyHours: null,
+  });
+
+  it('sektioner har unika namn, utan hänsyn till versaler och omgivande blanksteg', () => {
+    const d = domainFixture(); // Sektion 1 och Sektion 2
+    expect(() => ops.addSection(d, { id: 's3', name: '  sektion 1 ' })).toThrow(
+      'Det finns redan en sektion som heter "sektion 1".',
+    );
+    expect(() => ops.renameSection(d, 's2', 'SEKTION 1')).toThrow(/redan en sektion/);
+    expect(ops.renameSection(d, 's1', 'SEKTION 1').sections[0]!.name).toBe('SEKTION 1');
+  });
+
+  it('aktiv personal har unika namn; en raderad persons namn kan användas igen, "Extern personal" aldrig', () => {
+    let d = domainFixture(); // Anna och Kalle
+    expect(() => ops.addPerson(d, person('anna2', 'ANNA'))).toThrow('Det finns redan en person som heter "ANNA".');
+    expect(() => ops.updatePerson(d, 'kalle', { name: 'anna' })).toThrow(/redan en person/);
+    expect(() => ops.addPerson(d, person('ext', 'extern personal'))).toThrow(/redan en person/);
+    expect(ops.updatePerson(d, 'anna', { name: 'Anna', hourlyRate: 700 }).people[0]!.hourlyRate).toBe(700);
+
+    d = ops.setEstimate(d, 'i1', 'anna', 2026, 0, 10); // tiden gör att den raderade Anna finns kvar
+    d = ops.deletePerson(d, 'anna');
+    expect(ops.addPerson(d, person('anna2', 'Anna')).people.map((p) => p.name)).toEqual(['Anna', 'Kalle', 'Anna']);
+  });
+
+  it('produktägare och initiativ har unika namn', () => {
+    const d = domainFixture(); // Petra och Olle; Portal och App
+    expect(() => ops.addProductOwner(d, { id: 'po3', name: 'petra', sectionId: 's2' })).toThrow(
+      'Det finns redan en produktägare som heter "petra".',
+    );
+    expect(() => ops.updateProductOwner(d, 'po2', { name: 'Petra' })).toThrow(/redan en produktägare/);
+    expect(() =>
+      ops.addInitiative(d, { id: 'i3', name: 'portal', productOwnerId: 'po1', personIds: ['anna'], years: [2026] }),
+    ).toThrow('Det finns redan ett initiativ som heter "portal".');
+    expect(() => ops.updateInitiative(d, 'i2', { name: 'Portal' })).toThrow(/redan ett initiativ/);
+    expect(ops.updateInitiative(d, 'i1', { name: 'PORTAL' }).initiatives[0]!.name).toBe('PORTAL');
+  });
+
+  it('äldre data med dubbletter går fortfarande att redigera så länge namnet inte ändras', () => {
+    const d = domainFixture();
+    const withDuplicate = { ...d, people: [...d.people, person('anna2', 'Anna')] };
+    expect(ops.updatePerson(withDuplicate, 'anna2', { hourlyRate: 700 }).people[2]!.hourlyRate).toBe(700);
+  });
+});
+
 describe('tajmaklass', () => {
   it('är tom som standard, kan sättas, ändras och tas bort', () => {
     let d = domainFixture();

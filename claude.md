@@ -29,7 +29,7 @@ Applikationen har två huvudsakliga lägen:
 ### 2.1 Sektion
 
 * **Egenskaper:**
-* Namn (sträng)
+* Namn (sträng, unikt – se 5.5)
 * En sektion kan ha en eller flera personal, en eller flera produktägare och (via sina produktägare) ett eller flera initiativ.
 
 
@@ -37,7 +37,7 @@ Applikationen har två huvudsakliga lägen:
 ### 2.2 Personal
 
 * **Egenskaper:**
-* Namn (sträng)
+* Namn (sträng, unikt – se 5.5)
 * Typ: `Anställd` eller `Konsult`
 * Sektion (exakt 1 sektion). Personen kan bara kopplas till initiativ i sin egen sektion. Tid från personal i andra delar av organisationen registreras som Extern personal (2.7). Undantag: raderad personal saknar sektion när sektionen har raderats (3.1).
 * Status: aktiv eller raderad. Raderad personal finns kvar för den tid som redan registrerats (se 2.8), och bara så länge den tiden finns kvar.
@@ -49,7 +49,7 @@ Applikationen har två huvudsakliga lägen:
 ### 2.3 Produktägare
 
 * **Egenskaper:**
-* Namn (sträng)
+* Namn (sträng, unikt – se 5.5)
 * Sektion (exakt 1 sektion)
 
 
@@ -57,7 +57,7 @@ Applikationen har två huvudsakliga lägen:
 ### 2.4 Initiativ
 
 * **Egenskaper:**
-* Namn (sträng)
+* Namn (sträng, unikt – se 5.5)
 * Tillhörig Produktägare (Exakt 1 produktägare)
 * Sektion: väljs inte separat utan är alltid densamma som produktägarens sektion.
 * Kopplad Personal (Minst 1 person), endast aktiv personal i initiativets sektion. Personal som senare byter sektion eller raderas finns kvar med låst tid (2.8).
@@ -324,6 +324,13 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 * Systemet hanterar endast heltal. Alla tal som matas in – pengar (timkostnad, budget) såväl som tid (estimat, utfall, arbetstid) – är heltal som är 0 eller större (budget större än 0).
 * Inmatning med decimaler (t.ex. "7,5") godtas inte: fältet markeras som ogiltigt och värdet sparas inte.
 * Alla tal som presenteras visas som heltal. Ger en beräkning decimaler (t.ex. procent av budget, avvikelse i procent) avrundas resultatet till närmaste heltal när det visas; själva beräkningen görs med full precision. Samma gäller CSV-exporten.
+
+5. **Unika namn:**
+* Sektioner, personal, produktägare och initiativ har unika namn inom respektive typ. Två initiativ kan alltså inte heta samma sak, även om de har olika produktägare, men en sektion och ett initiativ kan ha samma namn.
+* Namnen jämförs utan hänsyn till versaler och gemener och utan inledande och avslutande blanksteg: "Anna Andersson", "anna andersson" och " Anna Andersson " räknas som samma namn.
+* För personal gäller kravet aktiv personal. Namnet på en raderad person kan användas av en ny person (3.2). Namnet "Extern personal" är upptaget av Extern personal (2.7).
+* Ett namn som redan finns godtas inte när något skapas eller byter namn: formuläret visar t.ex. "Det finns redan en sektion som heter "Data & Analys"." och inget sparas. Att byta skrivsätt på det egna namnet, t.ex. från "anna" till "Anna", är tillåtet.
+* Data från tidigare versioner kan innehålla dubbletter. Den läses in som vanligt, och posterna kan redigeras så länge namnet inte ändras till ett namn som redan finns.
 
 
 
