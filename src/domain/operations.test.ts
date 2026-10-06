@@ -93,19 +93,38 @@ describe('sektioner', () => {
     expect(() => ops.moveSectionContents(d, 's2', 's2')).toThrow(/annan sektion/);
   });
 
-  it('raderad personal räknas som innehåll och flyttas med', () => {
-    let d = domainFixture();
+  it('raderad personal med låst tid räknas som innehåll och flyttas med', () => {
+    let d = ops.setEstimate(domainFixture(), 'i1', 'anna', 2026, 0, 40);
+    d = ops.updatePerson(d, 'anna', { sectionId: 's2' }); // tiden på Portal (s1) låses
     d = ops.deletePerson(d, 'anna');
-    d = ops.updatePerson(d, 'kalle', { sectionId: 's2' });
+    // Bara den raderade Anna finns i s2, men hennes låsta tid gör att sektionen inte är tom.
+    expect(ops.sectionContents(d, 's2').deletedPeople.map((p) => p.id)).toEqual(['anna']);
+    expect(() => ops.deleteSection(d, 's2')).toThrow(/flyttas till en annan sektion/);
+    const moved = ops.moveSectionContents(d, 's2', 's1');
+    expect(ops.deleteSection(moved, 's2').sections.map((s) => s.id)).toEqual(['s1']);
+  });
+
+  it('raderad personal tas bort helt när den låsta tiden försvinner, så att sektionen kan raderas', () => {
+    let d = ops.setEstimate(domainFixture(), 'i1', 'anna', 2026, 0, 40);
+    d = ops.updatePerson(d, 'anna', { sectionId: 's2' });
+    d = ops.deletePerson(d, 'anna');
     d = ops.deleteInitiative(d, 'i1');
-    d = ops.deleteInitiative(d, 'i2');
-    d = ops.deleteProductOwner(d, 'po1');
-    d = ops.deleteProductOwner(d, 'po2');
-    // Bara den raderade Anna finns kvar i s1, men även hon måste flyttas innan sektionen kan raderas.
-    expect(ops.sectionContents(d, 's1').deletedPeople.map((p) => p.id)).toEqual(['anna']);
-    expect(() => ops.deleteSection(d, 's1')).toThrow(/flyttas till en annan sektion/);
-    d = ops.moveSectionContents(d, 's1', 's2');
-    expect(ops.deleteSection(d, 's1').sections.map((s) => s.id)).toEqual(['s2']);
+    expect(d.people.map((p) => p.id)).toEqual(['kalle']);
+    expect(ops.deleteSection(d, 's2').sections.map((s) => s.id)).toEqual(['s1']);
+  });
+
+  it('raderad personal utan tid tas bort helt direkt', () => {
+    const d = ops.deletePerson(domainFixture(), 'anna');
+    expect(d.people.map((p) => p.id)).toEqual(['kalle']);
+    expect(d.initiatives.flatMap((initiative) => initiative.personIds)).not.toContain('anna');
+  });
+
+  it('raderad personal tas bort när året med dess tid tas bort från initiativet', () => {
+    let d = ops.setEstimate(domainFixture(), 'i2', 'anna', 2027, 0, 8); // App gäller 2026–2027
+    d = ops.deletePerson(d, 'anna');
+    expect(d.people.map((p) => p.id)).toContain('anna');
+    d = ops.updateInitiative(d, 'i2', { years: [2026] });
+    expect(d.people.map((p) => p.id)).toEqual(['kalle']);
   });
 
   it('produktägare med initiativ kan inte byta sektion förrän initiativen fått en ny produktägare', () => {

@@ -186,6 +186,8 @@ function BlockedDeleteDialog({ section, onClose }: { section: Section; onClose: 
   const isEmpty = isSectionEmpty(contents);
   const contentsText = [
     contents.people.length > 0 && plural(contents.people.length, 'person', 'personer'),
+    contents.deletedPeople.length > 0 &&
+      plural(contents.deletedPeople.length, 'raderad person med låst tid', 'raderade personer med låst tid'),
     contents.productOwners.length > 0 && `${contents.productOwners.length} produktägare`,
     contents.initiatives.length > 0 && `${contents.initiatives.length} initiativ`,
   ]

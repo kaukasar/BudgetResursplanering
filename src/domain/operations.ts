@@ -164,7 +164,7 @@ function requireTimeSlot(data: AppData, slot: TimeSlot): void {
  * Låsta kopplingar utan några timmar bevarar ingen tid och tas bort, t.ex. när en person byter
  * sektion eller raderas innan någon tid har registrerats.
  */
-export function pruneEmptyLockedLinks(data: AppData): AppData {
+function pruneEmptyLockedLinks(data: AppData): AppData {
   let changed = false;
   const initiatives = data.initiatives.map((initiative) => {
     const empty = lockedPersonIds(data, initiative).filter(
@@ -181,6 +181,22 @@ export function pruneEmptyLockedLinks(data: AppData): AppData {
     estimates: initiatives.reduce((map, initiative) => keepInitiativePeopleAndYears(map, initiative), data.estimates),
     actuals: initiatives.reduce((map, initiative) => keepInitiativePeopleAndYears(map, initiative), data.actuals),
   };
+}
+
+/**
+ * Raderad personal finns bara kvar för den låsta tidens skull. När ingen tid finns kvar, t.ex. när
+ * initiativen har raderats, tas personen bort helt. Annars skulle personen för alltid hindra att
+ * sektionen raderas.
+ */
+function removeDeletedPeopleWithoutTime(data: AppData): AppData {
+  const linkedIds = new Set(data.initiatives.flatMap((initiative) => initiative.personIds));
+  const people = data.people.filter((person) => !person.deleted || linkedIds.has(person.id));
+  return people.length === data.people.length ? data : { ...data, people };
+}
+
+/** Tar bort låsta kopplingar och raderad personal som inte längre bevarar någon tid. */
+export function removeUnusedLockedData(data: AppData): AppData {
+  return removeDeletedPeopleWithoutTime(pruneEmptyLockedLinks(data));
 }
 
 // ---------------------------------------------------------------- Inställningar
@@ -287,7 +303,7 @@ export function updatePerson(data: AppData, id: string, patch: PersonPatch): App
   if (data.people.find((person) => person.id === id)?.deleted) {
     throw new DomainError('Personen är raderad och kan inte ändras.');
   }
-  return pruneEmptyLockedLinks({
+  return removeUnusedLockedData({
     ...data,
     people: data.people.map((person) => (person.id === id ? validatePerson(data, { ...person, ...patch }) : person)),
   });
@@ -295,10 +311,11 @@ export function updatePerson(data: AppData, id: string, patch: PersonPatch): App
 
 /**
  * Raderar personen. Tiden som redan registrerats finns kvar och räknas med, men låses, och
- * personen kan inte väljas igen. Kopplingar utan timmar tas bort.
+ * personen kan inte väljas igen. Kopplingar utan timmar tas bort, och saknar personen tid helt
+ * tas den bort helt.
  */
 export function deletePerson(data: AppData, id: string): AppData {
-  return pruneEmptyLockedLinks({
+  return removeUnusedLockedData({
     ...data,
     people: data.people.map((person) => (person.id === id ? { ...person, deleted: true } : person)),
   });
@@ -413,22 +430,22 @@ export function updateInitiative(data: AppData, id: string, patch: Partial<Omit<
     externalBudget: normalizeBudget(merged.externalBudget, 'Extern budget'),
     tajmaClass: normalizeTajmaClass(merged.tajmaClass),
   };
-  return {
+  return removeUnusedLockedData({
     ...data,
     initiatives: data.initiatives.map((initiative) => (initiative.id === id ? next : initiative)),
     estimates: keepInitiativePeopleAndYears(data.estimates, next),
     actuals: keepInitiativePeopleAndYears(data.actuals, next),
-  };
+  });
 }
 
 /** Initiativ kan alltid raderas, oavsett kopplade timmar. */
 export function deleteInitiative(data: AppData, id: string): AppData {
-  return {
+  return removeUnusedLockedData({
     ...data,
     initiatives: data.initiatives.filter((initiative) => initiative.id !== id),
     estimates: withoutInitiative(data.estimates, id),
     actuals: withoutInitiative(data.actuals, id),
-  };
+  });
 }
 
 // ---------------------------------------------------------------- Tidsregistrering

@@ -40,7 +40,7 @@ Applikationen har två huvudsakliga lägen:
 * Namn (sträng)
 * Typ: `Anställd` eller `Konsult`
 * Sektion (exakt 1 sektion). Personen kan bara kopplas till initiativ i sin egen sektion. Tid från personal i andra delar av organisationen registreras som Extern personal (2.7).
-* Status: aktiv eller raderad. Raderad personal finns kvar för den tid som redan registrerats (se 2.8).
+* Status: aktiv eller raderad. Raderad personal finns kvar för den tid som redan registrerats (se 2.8), och bara så länge den tiden finns kvar.
 * Timkostnad/Timpris (heltal i SEK/h)
 * Normal arbetstid per månad (heltal, t.ex. 160 timmar/månad)
 
@@ -107,7 +107,8 @@ En persons tid på ett initiativ är **låst** när personen har bytt till en an
 * Låst tid finns kvar och räknas med överallt: i summor, kostnader, prognos och utfall av den interna budgeten, nyckeltal och CSV-export.
 * Låst tid kan inte ändras, och ny tid kan inte registreras – varken estimat eller utfall.
 * Låsningen räknas fram och lagras inte: flyttar personen tillbaka till initiativets sektion kan tiden ändras igen.
-* En koppling som blir låst utan att någon tid är registrerad tas bort automatiskt, eftersom det inte finns någon tid att bevara.
+* En koppling som blir låst utan att någon tid är registrerad tas bort automatiskt, eftersom det inte finns någon tid att bevara. Detsamma gäller en låst koppling vars tid försvinner, t.ex. när året med tiden tas bort från initiativet.
+* Raderad personal som inte längre har någon låst tid tas bort helt, t.ex. när personen raderas utan registrerad tid eller när initiativen med tiden raderas. På så sätt kan all data alltid raderas manuellt: först personal och initiativ, därefter produktägare och till sist sektioner.
 * Data från tidigare versioner, där personal kunde kopplas till initiativ i andra sektioner, får låst tid på dessa initiativ. Ingen tid raderas.
 
 
@@ -152,14 +153,14 @@ I adminläget ska administratörer kunna skapa, redigera och radera grundläggan
 * Skapa sektion och byta namn på sektion.
 * Radera sektion:
 * **Regel:** En sektion får endast raderas när den är tom: ingen personal (inte heller raderad personal med låst tid), inga produktägare och därmed inga initiativ. Att radera en sektion med tillhörande data är inte tillåtet.
-* Om sektionen har innehåll hindrar systemet radering och kräver att allt innehåll först flyttas till en annan sektion med **Flytta allt**. Personal, produktägare och initiativ flyttas då tillsammans, så att personalen behåller sina initiativ och ingen tid låses. Dialogen visar vad sektionen innehåller.
+* Om sektionen har innehåll hindrar systemet radering och kräver att allt innehåll först flyttas till en annan sektion med **Flytta allt**. Personal, produktägare och initiativ flyttas då tillsammans, så att personalen behåller sina initiativ och ingen tid låses. Dialogen visar vad sektionen innehåller, även raderad personal med låst tid (t.ex. "1 raderad person med låst tid"). Den låsta tiden försvinner när initiativen med tiden raderas, och då kan sektionen raderas.
 
 ### 3.2 Hantering av Personal
 
 * Skapa ny personal med namn, typ (`Anställd`/`Konsult`) och sektion.
 * Redigera befintlig personal och deras egenskaper, inklusive byte av sektion.
 * **Byte av sektion:** innan bytet sparas visar en bekräftelsedialog de initiativ där personen blir låst ("Anna blir låst på Portal och App. Tiden finns kvar men kan inte ändras.") och de initiativ där personen kopplas bort eftersom ingen tid är registrerad. Därefter kan personen bara arbeta på initiativ i den nya sektionen.
-* **Radera personal:** personen markeras som raderad och visas inte längre i fliken Personal eller i några val. Tiden som redan registrerats finns kvar men låses (2.8); bekräftelsedialogen visar den per initiativ. Namnet får användas av en ny person.
+* **Radera personal:** personen markeras som raderad och visas inte längre i fliken Personal eller i några val. Tiden som redan registrerats finns kvar men låses (2.8); bekräftelsedialogen visar den per initiativ. Saknar personen registrerad tid tas den bort helt. Namnet får användas av en ny person.
 * Antalet personal (t.ex. i flikens rubrik) avser aktiv personal.
 * Det ska finnas en global inställning för samtlig personal som anger hur mycket en konsult respektive anställd kostar samt hur många timmar per månad de förväntas att arbeta. Inställningen är gemensam för alla sektioner.
 * **Förifyllda standardvärden:** Anställd 625 kr/h och Konsult 1 130 kr/h, båda med 160 timmar per månad. Värdena gäller tills de ändras under Inställningar, och för alla personer som saknar egen timkostnad eller arbetstid.

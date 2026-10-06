@@ -1,4 +1,4 @@
-import { DomainError, pruneEmptyLockedLinks } from './operations';
+import { DomainError, removeUnusedLockedData } from './operations';
 import {
   EXTERNAL_STAFF_ID,
   isTajmaClass,
@@ -224,8 +224,8 @@ export function parseAppData(raw: unknown): AppData {
     });
 
   // Äldre data kan ha personal kopplad till initiativ i andra sektioner. Den tiden blir låst;
-  // kopplingar helt utan timmar tas bort.
-  return pruneEmptyLockedLinks({
+  // kopplingar helt utan timmar tas bort, liksom raderad personal som inte längre har någon tid.
+  return removeUnusedLockedData({
     settings,
     sections: withOwners.sections,
     people,
