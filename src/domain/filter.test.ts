@@ -13,9 +13,11 @@ import {
   type TajmaClassFilter,
 } from './filter';
 import * as ops from './operations';
+import { ALL_MONTHS } from './period';
 
 const ALL: InitiativeFilter = {
   year: 2026,
+  month: ALL_MONTHS,
   sectionId: ALL_SECTIONS,
   ownerId: ALL_OWNERS,
   tajmaClass: ALL_TAJMA_CLASSES,
@@ -66,17 +68,19 @@ describe('filtrering av initiativ', () => {
 
 describe('sparat filter', () => {
   it('behåller val som fortfarande finns', () => {
-    const saved: InitiativeFilter = { year: 2027, sectionId: 's1', ownerId: 'po1', tajmaClass: 'Drift' };
+    const saved: InitiativeFilter = { year: 2027, month: 2, sectionId: 's1', ownerId: 'po1', tajmaClass: 'Drift' };
     expect(resolveFilter(domainFixture(), saved)).toEqual(saved);
   });
 
-  it('visar alla i stället för en raderad sektion, en produktägare utanför sektionen och en okänd tajmaklass', () => {
+  it('visar alla i stället för en raderad sektion, en produktägare utanför sektionen, en okänd tajmaklass och en ogiltig månad', () => {
     const data = domainFixture(); // Petra (po1) tillhör s1
     expect(resolveFilter(data, { ...ALL, sectionId: 'raderad' }).sectionId).toBe(ALL_SECTIONS);
     expect(resolveFilter(data, { ...ALL, sectionId: 's2', ownerId: 'po1' }).ownerId).toBe(ALL_OWNERS);
     expect(resolveFilter(data, { ...ALL, ownerId: 'raderad' }).ownerId).toBe(ALL_OWNERS);
     const unknownTajmaClass = { ...ALL, tajmaClass: 'Okänd' } as unknown as InitiativeFilter;
     expect(resolveFilter(data, unknownTajmaClass).tajmaClass).toBe(ALL_TAJMA_CLASSES);
+    expect(resolveFilter(data, { ...ALL, month: 12 }).month).toBe(ALL_MONTHS);
+    expect(resolveFilter(data, { ...ALL, month: 'mars' } as unknown as InitiativeFilter).month).toBe(ALL_MONTHS);
   });
 });
 

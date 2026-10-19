@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { ALL_OWNERS, ALL_SECTIONS, ALL_TAJMA_CLASSES, type TajmaClassFilter } from '../domain/filter';
+import { ALL_MONTHS, type MonthFilter } from '../domain/period';
 import { nextSort, type SortState } from '../domain/sorting';
 
 export type Mode = 'work' | 'admin';
@@ -25,6 +26,8 @@ interface UiState {
   /** Sorteringskolumn och riktning per adminflik. */
   adminSort: Record<SortableTab, SortState>;
   year: number;
+  /** Vald månad i arbetsläget, eller alla månader. */
+  month: MonthFilter;
   view: WorkView;
   sectionId: string;
   ownerId: string;
@@ -34,13 +37,14 @@ interface UiState {
   /** Klick på en kolumnrubrik: ny kolumn sorteras stigande, samma kolumn vänder riktningen. */
   sortAdminBy: (tab: SortableTab, key: string) => void;
   setYear: (year: number) => void;
+  setMonth: (month: MonthFilter) => void;
   setView: (view: WorkView) => void;
   setSectionId: (id: string) => void;
   setOwnerId: (id: string) => void;
   setTajmaClass: (tajmaClass: TajmaClassFilter) => void;
 }
 
-/** Vy-inställningar (valt läge, år, sektion, produktägare och tajmaklass) som minns mellan besök. */
+/** Vy-inställningar (valt läge, år, månad, sektion, produktägare och tajmaklass) som minns mellan besök. */
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
@@ -49,6 +53,7 @@ export const useUiStore = create<UiState>()(
       adminSort: DEFAULT_ADMIN_SORT,
       view: 'estimate',
       year: new Date().getFullYear(),
+      month: ALL_MONTHS,
       sectionId: ALL_SECTIONS,
       ownerId: ALL_OWNERS,
       tajmaClass: ALL_TAJMA_CLASSES,
@@ -57,6 +62,7 @@ export const useUiStore = create<UiState>()(
       sortAdminBy: (tab, key) =>
         set((state) => ({ adminSort: { ...state.adminSort, [tab]: nextSort(state.adminSort[tab], key) } })),
       setYear: (year) => set({ year }),
+      setMonth: (month) => set({ month }),
       setView: (view) => set({ view }),
       setSectionId: (sectionId) => set({ sectionId }),
       setOwnerId: (ownerId) => set({ ownerId }),

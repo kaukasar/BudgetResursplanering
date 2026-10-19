@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { sum } from '../../domain/calc';
 import type { Deviation, InitiativeComparison } from '../../domain/comparison';
 import { formatHours, formatSigned } from '../../domain/format';
+import { sumInPeriod, type MonthFilter } from '../../domain/period';
 import { MONTHS } from '../../domain/types';
 import { MISSING } from '../labels';
+import { monthClass } from './monthClass';
 import { PersonCell, rateDetails } from './PersonCell';
 
 interface Props {
   year: number;
+  /** Hela året eller en vald månad; övriga månader visas gråa och räknas inte i totalerna. */
+  period: MonthFilter;
   comparison: InitiativeComparison;
 }
 
 const DEVIATION_EXPLANATION = 'Utfall minus estimat, för månader med rapporterat utfall';
 
 /** Skrivskyddad tabell med utfall och avvikelse mot estimat per person och månad. */
-export function CompareGrid({ year, comparison }: Props) {
+export function CompareGrid({ year, period, comparison }: Props) {
   const [expandedPersonIds, setExpandedPersonIds] = useState<ReadonlySet<string>>(new Set());
   const toggleExpanded = (personId: string) =>
     setExpandedPersonIds((current) => {
@@ -32,9 +35,9 @@ export function CompareGrid({ year, comparison }: Props) {
             <th scope="col" className="col-person">
               Personal
             </th>
-            {MONTHS.map((month) => (
-              <th key={month} scope="col">
-                {month}
+            {MONTHS.map((name, month) => (
+              <th key={name} scope="col" className={monthClass(month, period)}>
+                {name}
               </th>
             ))}
             <th scope="col" className="col-total">
@@ -51,7 +54,7 @@ export function CompareGrid({ year, comparison }: Props) {
         <tbody>
           {comparison.people.flatMap((row) => {
             const isExpanded = expandedPersonIds.has(row.person.id);
-            const estimateTotal = sum(row.estimate);
+            const estimateTotal = sumInPeriod(row.estimate, period);
             const personRow = (
               <tr key={row.person.id}>
                 <PersonCell
@@ -71,7 +74,12 @@ export function CompareGrid({ year, comparison }: Props) {
                   }
                 />
                 {row.estimate.map((estimate, month) => (
-                  <CompareCell key={month} estimate={estimate} actual={row.actual[month]!} />
+                  <CompareCell
+                    key={month}
+                    className={monthClass(month, period)}
+                    estimate={estimate}
+                    actual={row.actual[month]!}
+                  />
                 ))}
                 <td className="num total">{formatHours(estimateTotal)} h</td>
                 <td className="num total">{formatHours(row.deviation.actual)} h</td>
@@ -85,7 +93,7 @@ export function CompareGrid({ year, comparison }: Props) {
                   <span className="meta">Estimat {year}</span>
                 </th>
                 {row.estimate.map((estimate, month) => (
-                  <td key={month} className="num">
+                  <td key={month} className={monthClass(month, period, 'num')}>
                     {formatHours(estimate)}
                   </td>
                 ))}
@@ -101,7 +109,12 @@ export function CompareGrid({ year, comparison }: Props) {
           <tr>
             <th scope="row">Summa</th>
             {comparison.months.map((month, index) => (
-              <CompareCell key={index} estimate={month.reportedEstimate} actual={month.actual} />
+              <CompareCell
+                key={index}
+                className={monthClass(index, period)}
+                estimate={month.reportedEstimate}
+                actual={month.actual}
+              />
             ))}
             <td className="num total">{formatHours(comparison.estimateTotal)} h</td>
             <td className="num total">{formatHours(comparison.deviation.actual)} h</td>
@@ -114,16 +127,31 @@ export function CompareGrid({ year, comparison }: Props) {
 }
 
 /** Utfall med avvikelse mot `estimate` under; "–" om inget utfall är rapporterat. */
-function CompareCell({ estimate, actual }: { estimate: number; actual: number | null }) {
+function CompareCell({
+  estimate,
+  actual,
+  className,
+}: {
+  estimate: number;
+  actual: number | null;
+  /** T.ex. att månaden ligger utanför vald period. */
+  className?: string;
+}) {
   if (actual === null) {
     return (
-      <td className="num cmp not-reported" title={`Estimat ${formatHours(estimate)} h · inget utfall rapporterat`}>
+      <td
+        className={['num cmp not-reported', className].filter(Boolean).join(' ')}
+        title={`Estimat ${formatHours(estimate)} h · inget utfall rapporterat`}
+      >
         <span className="cmp-value">{MISSING}</span>
       </td>
     );
   }
   return (
-    <td className="num cmp" title={`Estimat ${formatHours(estimate)} h · utfall ${formatHours(actual)} h`}>
+    <td
+      className={['num cmp', className].filter(Boolean).join(' ')}
+      title={`Estimat ${formatHours(estimate)} h · utfall ${formatHours(actual)} h`}
+    >
       <span className="cmp-value">{formatHours(actual)}</span>
       <DeviationMark diff={actual - estimate} />
     </td>

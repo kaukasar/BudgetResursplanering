@@ -774,6 +774,15 @@ td.over span {
   color: var(--over-text);
   font-weight: 650;
 }
+/* Månader utanför vald period: alla siffror gråa, även överallokering och avvikelser, eftersom de
+   inte ingår i summorna. Cellerna kan fortfarande ändras. */
+.grid th.outside-period,
+.grid td.outside-period,
+.grid td.outside-period input,
+.grid td.outside-period span {
+  color: var(--faint);
+  font-weight: 400;
+}
 .over-flag {
   display: inline-block;
   margin-left: 6px;

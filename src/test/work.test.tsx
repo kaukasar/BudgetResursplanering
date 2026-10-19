@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import * as ops from '../domain/operations';
 import { emptyData, type AppData } from '../domain/types';
 import { DATA_STORAGE_KEY, useDataStore } from '../store/store';
+import { useUiStore } from '../store/ui';
 import { cell, initiativeSection, renderApp, resetStores, seed, withSecondSection, YEAR } from './helpers';
 
 beforeEach(resetStores);
@@ -141,7 +142,7 @@ describe('arbetsläge', () => {
     renderApp();
 
     const filters = screen.getAllByRole('combobox').map((select) => select.getAttribute('aria-label'));
-    expect(filters.slice(1, 4)).toEqual(['Sektion', 'Produktägare', 'Tajmaklass']);
+    expect(filters.slice(0, 5)).toEqual(['Månad', 'År', 'Sektion', 'Produktägare', 'Tajmaklass']);
     const tajma = screen.getByRole('combobox', { name: 'Tajmaklass' });
     expect(
       within(tajma)
@@ -247,5 +248,61 @@ describe('nyckeltalen intern och extern budget', () => {
     useDataStore.setState({ data: d });
     await waitFor(() => expect(internalFigure()).toHaveTextContent('–')); // ingen budget alls
     expect(externalFigure()).toHaveTextContent('–');
+  });
+
+  it('månadsfiltret till vänster om året: summorna avser vald månad och övriga månader blir gråa', async () => {
+    // Anna (650 kr/h): 200 h i januari (överallokerad) och 40 h i mars. Kalle (1 000 kr/h): 10 h i mars.
+    let d = ops.setEstimate(seed(), 'portal', 'anna', YEAR, 0, 200);
+    d = ops.setEstimate(d, 'portal', 'anna', YEAR, 2, 40);
+    d = ops.setEstimate(d, 'portal', 'kalle', YEAR, 2, 10);
+    useDataStore.setState({ data: d });
+    const user = userEvent.setup();
+    renderApp();
+    const keyFigure = (label: string) =>
+      screen.getByText(label, { selector: '.stat .label' }).nextElementSibling?.textContent;
+
+    const monthSelect = screen.getByRole('combobox', { name: 'Månad' });
+    expect(monthSelect).toHaveDisplayValue('Alla månader');
+    expect(keyFigure(`Planerade timmar ${YEAR}`)).toBe('250 h');
+    expect(keyFigure('Överallokerade personmånader')).toBe('1');
+
+    await user.selectOptions(monthSelect, 'Mars');
+    expect(keyFigure(`Planerade timmar mars ${YEAR}`)).toBe('50 h');
+    expect(keyFigure(`Planerad kostnad mars ${YEAR}`)).toBe('36 000 kr');
+    expect(keyFigure('Överallokerade personmånader')).toBe('0');
+
+    const portal = initiativeSection('Portal');
+    expect(portal).toHaveTextContent(`Prognos intern mars ${YEAR}36 000 kr`);
+    const annaRow = within(portal).getByRole('row', { name: /Anna/ });
+    expect(annaRow).toHaveTextContent('40 h26 000 kr');
+    expect(within(portal).getByRole('row', { name: /Summa/ })).toHaveTextContent('50 h36 000 kr');
+    // Övriga månader är gråa men går att ändra; Anna är inte överallokerad i mars.
+    expect(cell('Anna', 'januari', 'Portal').closest('td')).toHaveClass('outside-period');
+    expect(cell('Anna', 'mars', 'Portal').closest('td')).not.toHaveClass('outside-period');
+    expect(cell('Anna', 'januari', 'Portal')).not.toHaveAttribute('readonly');
+    expect(within(annaRow).getByRole('rowheader')).not.toHaveClass('over');
+    expect(screen.getByRole('columnheader', { name: 'Kapacitet/mån' })).toBeInTheDocument();
+
+    // Valet sparas mellan besök, som övriga filter.
+    const saved = JSON.parse(localStorage.getItem('ekonomi.ui')!) as { state: { month: number } };
+    expect(saved.state.month).toBe(2);
+
+    await user.selectOptions(monthSelect, 'Alla månader');
+    expect(keyFigure(`Planerade timmar ${YEAR}`)).toBe('250 h');
+    expect(cell('Anna', 'januari', 'Portal').closest('td')).not.toHaveClass('outside-period');
+  });
+
+  it('jämförelsevyn räknar estimat, utfall och avvikelse för vald månad', () => {
+    let d = ops.setEstimate(seed(), 'portal', 'anna', YEAR, 0, 100);
+    d = ops.setActual(d, 'portal', 'anna', YEAR, 0, 90);
+    d = ops.setEstimate(d, 'portal', 'anna', YEAR, 2, 40);
+    d = ops.setActual(d, 'portal', 'anna', YEAR, 2, 50);
+    useDataStore.setState({ data: d });
+    useUiStore.setState({ view: 'compare', month: 2 });
+    renderApp();
+
+    const annaRow = within(initiativeSection('Portal')).getByRole('row', { name: /Anna/ });
+    expect(annaRow).toHaveTextContent('40 h50 h+10 h+25 %');
+    expect(screen.getByText(`Utfall mars ${YEAR}`, { selector: '.stat .label' })).toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ import {
   type PersonCapacity,
 } from '../../domain/calc';
 import { formatHours, formatSek } from '../../domain/format';
+import { flagsInPeriod, type MonthFilter } from '../../domain/period';
 import {
   isExternal,
   MONTHS,
@@ -18,23 +19,26 @@ import {
   type Worker,
 } from '../../domain/types';
 import { useDataStore } from '../../store/store';
+import { monthClass } from './monthClass';
 import { PersonCell, rateDetails } from './PersonCell';
 
 interface Props {
   data: AppData;
   initiative: Initiative;
   year: number;
+  /** Hela året eller en vald månad; övriga månader visas gråa och räknas inte i totalerna. */
+  period: MonthFilter;
   /** Estimat eller utfall – det som matas in i cellerna. */
   measure: Measure;
 }
 
 /** Tabell där estimat eller utfall matas in per person och månad. Låst tid visas skrivskyddad. */
-export function EditGrid({ data, initiative, year, measure }: Props) {
+export function EditGrid({ data, initiative, year, period, measure }: Props) {
   const setEstimate = useDataStore((state) => state.setEstimate);
   const setActual = useDataStore((state) => state.setActual);
   const fillActualsFromEstimate = useDataStore((state) => state.fillActualsFromEstimate);
   const isActual = measure === 'actual';
-  const summary = summarizeInitiative(data, initiative, year, measure);
+  const summary = summarizeInitiative(data, initiative, year, measure, period);
   const fillThroughMonth = lastCompletedMonth(year, new Date());
 
   return (
@@ -45,9 +49,9 @@ export function EditGrid({ data, initiative, year, measure }: Props) {
             <th scope="col" className="col-person">
               Personal
             </th>
-            {MONTHS.map((month) => (
-              <th key={month} scope="col">
-                {month}
+            {MONTHS.map((name, month) => (
+              <th key={name} scope="col" className={monthClass(month, period)}>
+                {name}
               </th>
             ))}
             <th scope="col" className="col-total">
@@ -75,7 +79,7 @@ export function EditGrid({ data, initiative, year, measure }: Props) {
                   person={person}
                   details={rateDetails(person, row.rate)}
                   lockReason={lockReason}
-                  overallocated={capacity?.overallocated}
+                  overallocated={capacity ? flagsInPeriod(capacity.overallocated, period) : undefined}
                   after={
                     canFillFromEstimate && (
                       <button
@@ -92,7 +96,7 @@ export function EditGrid({ data, initiative, year, measure }: Props) {
                 {MONTHS.map((_, month) => (
                   <td
                     key={month}
-                    className={capacity?.overallocated[month] ? 'cell over' : 'cell'}
+                    className={monthClass(month, period, capacity?.overallocated[month] ? 'cell over' : 'cell')}
                     title={cellTitle(person, month, capacity, measure, estimates[month]!)}
                   >
                     <HoursCell
@@ -122,7 +126,7 @@ export function EditGrid({ data, initiative, year, measure }: Props) {
           <tr>
             <th scope="row">Summa</th>
             {summary.monthTotals.map((total, month) => (
-              <td key={month} className="num">
+              <td key={month} className={monthClass(month, period, 'num')}>
                 {formatHours(total)}
               </td>
             ))}

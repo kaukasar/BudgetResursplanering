@@ -9,6 +9,7 @@ import {
   type InitiativeFilter,
   type TajmaClassFilter,
 } from '../../domain/filter';
+import type { MonthFilter } from '../../domain/period';
 import { sortByName } from '../../domain/sorting';
 import type { AppData } from '../../domain/types';
 import { useDataStore } from '../../store/store';
@@ -22,11 +23,12 @@ import { VIEW_MEASURE } from './workViews';
 /** Arbetsläget: filter, nyckeltal, kapacitet och en tabell per initiativ. */
 export function WorkView() {
   const data = useDataStore((state) => state.data);
-  const { year, view, sectionId, ownerId, tajmaClass } = useUiStore();
+  const { year, month, view, sectionId, ownerId, tajmaClass } = useUiStore();
 
   if (data.initiatives.length === 0) return <NoInitiatives />;
 
-  const filter = resolveFilter(data, { year, sectionId, ownerId, tajmaClass });
+  const filter = resolveFilter(data, { year, month, sectionId, ownerId, tajmaClass });
+  const period: MonthFilter = filter.month;
   const initiatives = sortByName(filterInitiatives(data, filter));
   const involvedPersonIds = new Set(initiatives.flatMap((initiative) => initiative.personIds));
   // Raderad personal visas inte i kapacitetsöversikten och räknas inte som överallokerad.
@@ -40,7 +42,14 @@ export function WorkView() {
         owners={sortByName(ownersInSection(data, filter.sectionId))}
         filter={filter}
       />
-      <WorkKeyFigures data={data} initiatives={initiatives} people={involvedPeople} year={year} view={view} />
+      <WorkKeyFigures
+        data={data}
+        initiatives={initiatives}
+        people={involvedPeople}
+        year={year}
+        period={period}
+        view={view}
+      />
       {initiatives.length === 0 ? (
         <div className="card empty">
           <h3>Inga initiativ</h3>
@@ -48,9 +57,22 @@ export function WorkView() {
         </div>
       ) : (
         <div className="stack">
-          <CapacityOverview data={data} people={involvedPeople} year={year} measure={VIEW_MEASURE[view]} />
+          <CapacityOverview
+            data={data}
+            people={involvedPeople}
+            year={year}
+            period={period}
+            measure={VIEW_MEASURE[view]}
+          />
           {initiatives.map((initiative) => (
-            <InitiativeTable key={initiative.id} data={data} initiative={initiative} year={year} view={view} />
+            <InitiativeTable
+              key={initiative.id}
+              data={data}
+              initiative={initiative}
+              year={year}
+              period={period}
+              view={view}
+            />
           ))}
         </div>
       )}

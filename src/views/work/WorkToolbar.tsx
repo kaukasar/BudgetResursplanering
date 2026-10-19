@@ -6,7 +6,8 @@ import {
   type InitiativeFilter,
   type TajmaClassFilter,
 } from '../../domain/filter';
-import { TAJMA_CLASSES, type ProductOwner, type Section } from '../../domain/types';
+import { ALL_MONTHS } from '../../domain/period';
+import { MONTHS_LONG, TAJMA_CLASSES, type ProductOwner, type Section } from '../../domain/types';
 import { useUiStore, type WorkView } from '../../store/ui';
 import { VIEW_LABEL } from './workViews';
 
@@ -19,14 +20,30 @@ interface Props {
   filter: InitiativeFilter;
 }
 
-/** Filter för år, sektion, produktägare och tajmaklass samt val av vy (estimat, utfall, jämförelse). */
+/** Filter för månad, år, sektion, produktägare och tajmaklass samt val av vy (estimat, utfall, jämförelse). */
 export function WorkToolbar({ years, sections, owners, filter }: Props) {
-  const { year, sectionId, ownerId, tajmaClass } = filter;
-  const { setYear, setSectionId, setOwnerId, setTajmaClass, view, setView } = useUiStore();
+  const { year, month, sectionId, ownerId, tajmaClass } = filter;
+  const { setYear, setMonth, setSectionId, setOwnerId, setTajmaClass, view, setView } = useUiStore();
   const selectedSection = sections.find((section) => section.id === sectionId);
 
   return (
     <div className="toolbar">
+      <label className="field">
+        <span>Månad</span>
+        <select
+          className="select"
+          value={month ?? ''}
+          onChange={(e) => setMonth(e.target.value === '' ? ALL_MONTHS : Number(e.target.value))}
+          aria-label="Månad"
+        >
+          <option value="">Alla månader</option>
+          {MONTHS_LONG.map((name, index) => (
+            <option key={name} value={index}>
+              {name.charAt(0).toUpperCase() + name.slice(1)}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="field">
         <span>År</span>
         <div className="year-picker">

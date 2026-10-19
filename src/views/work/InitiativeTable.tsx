@@ -3,6 +3,7 @@ import { budgetStatuses } from '../../domain/budget';
 import { costByPart, hasExternalStaff, initiativeSectionId, summarizeInitiative } from '../../domain/calc';
 import { compareInitiative } from '../../domain/comparison';
 import { formatSek } from '../../domain/format';
+import { periodLabel, type MonthFilter } from '../../domain/period';
 import type { AppData, Initiative, Measure } from '../../domain/types';
 import type { WorkView } from '../../store/ui';
 import { ownerName, sectionName } from '../labels';
@@ -15,14 +16,16 @@ interface Props {
   data: AppData;
   initiative: Initiative;
   year: number;
+  /** Hela året eller en vald månad; tabellhuvudets kostnader och tabellens totaler avser perioden. */
+  period: MonthFilter;
   view: WorkView;
 }
 
 /** Ett initiativ i arbetsläget: huvud med kostnader och budget, och en tabell för vald vy. */
-export function InitiativeTable({ data, initiative, year, view }: Props) {
+export function InitiativeTable({ data, initiative, year, period, view }: Props) {
   const sectionId = initiativeSectionId(data, initiative);
   const budgets = budgetStatuses(data, initiative);
-  const comparison = view === 'compare' ? compareInitiative(data, initiative, year) : undefined;
+  const comparison = view === 'compare' ? compareInitiative(data, initiative, year, period) : undefined;
   const hasPeople = initiative.personIds.length > 0;
 
   return (
@@ -40,10 +43,10 @@ export function InitiativeTable({ data, initiative, year, view }: Props) {
         <div className="totals">
           {/* Utfallsvyn visar utfallet, estimatvyn prognosen och jämförelsevyn båda. */}
           {view !== 'estimate' && (
-            <CostByPartFigures data={data} initiative={initiative} year={year} measure="actual" />
+            <CostByPartFigures data={data} initiative={initiative} year={year} period={period} measure="actual" />
           )}
           {view !== 'actual' && (
-            <CostByPartFigures data={data} initiative={initiative} year={year} measure="estimate" />
+            <CostByPartFigures data={data} initiative={initiative} year={year} period={period} measure="estimate" />
           )}
           {budgets.map((budget) => (
             <BudgetSummary key={budget.part} budget={budget} initiative={initiative} year={year} view={view} />
@@ -54,9 +57,15 @@ export function InitiativeTable({ data, initiative, year, view }: Props) {
       {!hasPeople ? (
         <div className="empty small">Ingen personal är kopplad till initiativet. Lägg till personal i adminläget.</div>
       ) : comparison ? (
-        <CompareGrid year={year} comparison={comparison} />
+        <CompareGrid year={year} period={period} comparison={comparison} />
       ) : (
-        <EditGrid data={data} initiative={initiative} year={year} measure={view === 'actual' ? 'actual' : 'estimate'} />
+        <EditGrid
+          data={data}
+          initiative={initiative}
+          year={year}
+          period={period}
+          measure={view === 'actual' ? 'actual' : 'estimate'}
+        />
       )}
     </section>
   );
@@ -68,7 +77,7 @@ const COST_LABEL: Record<Measure, { label: string; explanation: string }> = {
 };
 
 /**
- * Årets prognos eller utfallskostnad uppdelad på intern personal och Extern personal. Timmar, total
+ * Periodens prognos eller utfallskostnad uppdelad på intern personal och Extern personal. Timmar, total
  * kostnad och avvikelse visas inte här utan i tabellens totalkolumner och summeringsrad. Den externa
  * kostnaden visas bara när Extern personal är kopplad till initiativet.
  */
@@ -76,25 +85,28 @@ function CostByPartFigures({
   data,
   initiative,
   year,
+  period,
   measure,
 }: {
   data: AppData;
   initiative: Initiative;
   year: number;
+  period: MonthFilter;
   measure: Measure;
 }) {
-  const cost = costByPart(summarizeInitiative(data, initiative, year, measure));
+  const cost = costByPart(summarizeInitiative(data, initiative, year, measure, period));
+  const periodText = periodLabel(year, period);
   const { label, explanation } = COST_LABEL[measure];
   return (
     <>
       <KeyFigure
-        label={`${label} intern ${year}`}
+        label={`${label} intern ${periodText}`}
         value={formatSek(cost.internal)}
         title={`${explanation} för personal i sektionen`}
       />
       {hasExternalStaff(initiative) && (
         <KeyFigure
-          label={`${label} extern ${year}`}
+          label={`${label} extern ${periodText}`}
           value={formatSek(cost.external)}
           title={`${explanation} för Extern personal`}
         />

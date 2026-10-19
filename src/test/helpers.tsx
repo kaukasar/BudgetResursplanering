@@ -68,6 +68,7 @@ export function resetStores() {
   useEditLockStore.setState({ editingEnabled: true });
   useUiStore.setState({
     year: YEAR,
+    month: null,
     view: 'estimate',
     sectionId: '',
     ownerId: '',

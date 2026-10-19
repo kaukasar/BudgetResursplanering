@@ -1,4 +1,5 @@
 import { effectiveRate, getMonthActuals, getMonthEstimates, linkedPeople, lockReason, sum, zeroMonths } from './calc';
+import { ALL_MONTHS, isInPeriod, sumInPeriod, type MonthFilter } from './period';
 import type { AppData, Initiative, LockReason, MonthActuals, MonthHours, Worker } from './types';
 
 /**
@@ -61,15 +62,26 @@ export interface MonthComparison {
 export interface InitiativeComparison {
   people: PersonComparison[];
   months: MonthComparison[];
+  /** Estimat för perioden, alla personer. */
   estimateTotal: number;
   deviation: Deviation;
 }
 
-/** Estimat mot utfall per person och månad för ett initiativ ett visst år. */
-export function compareInitiative(data: AppData, initiative: Initiative, year: number): InitiativeComparison {
+/**
+ * Estimat mot utfall per person och månad för ett initiativ ett visst år. Månadsvärdena gäller alla
+ * tolv månader, medan totaler och avvikelser bara gäller perioden (hela året eller en vald månad).
+ */
+export function compareInitiative(
+  data: AppData,
+  initiative: Initiative,
+  year: number,
+  period: MonthFilter = ALL_MONTHS,
+): InitiativeComparison {
   const people = linkedPeople(data, initiative).map((person): PersonComparison => {
     const estimate = getMonthEstimates(data, initiative.id, person.id, year);
     const actual = getMonthActuals(data, initiative.id, person.id, year);
+    // Utfall utanför perioden räknas inte med i avvikelsen, som om det inte var rapporterat.
+    const actualInPeriod = actual.map((value, month) => (isInPeriod(month, period) ? value : null));
     const rate = effectiveRate(person, data.settings);
     return {
       person,
@@ -77,7 +89,7 @@ export function compareInitiative(data: AppData, initiative: Initiative, year: n
       rate,
       estimate,
       actual,
-      deviation: calculateDeviation(estimate, actual),
+      deviation: calculateDeviation(estimate, actualInPeriod),
     };
   });
 
@@ -93,7 +105,10 @@ export function compareInitiative(data: AppData, initiative: Initiative, year: n
   return {
     people,
     months,
-    estimateTotal: sum(months.map((month) => month.estimate)),
+    estimateTotal: sumInPeriod(
+      months.map((month) => month.estimate),
+      period,
+    ),
     deviation: sumDeviations(people.map((row) => row.deviation)),
   };
 }

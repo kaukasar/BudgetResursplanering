@@ -1,4 +1,5 @@
 import { initiativeSectionId } from './calc';
+import { ALL_MONTHS, isMonthFilter, type MonthFilter } from './period';
 import { isTajmaClass, type AppData, type Initiative, type ProductOwner, type TajmaClass } from './types';
 
 /** Värdena för "alla" i väljarna för sektion, produktägare och tajmaklass. */
@@ -16,6 +17,8 @@ export const isTajmaClassFilter = (value: unknown): value is TajmaClassFilter =>
 /** Arbetslägets filter. */
 export interface InitiativeFilter {
   year: number;
+  /** Månaden som summor och nyckeltal avser. Påverkar inte vilka initiativ som visas. */
+  month: MonthFilter;
   sectionId: string;
   ownerId: string;
   tajmaClass: TajmaClassFilter;
@@ -45,7 +48,8 @@ export function ownersInSection(data: AppData, sectionId: string): ProductOwner[
 
 /**
  * Ett sparat filter kan peka på sådant som inte längre finns: en raderad sektion eller produktägare,
- * en produktägare utanför vald sektion eller en okänd tajmaklass. Då gäller "alla" i stället.
+ * en produktägare utanför vald sektion, en okänd tajmaklass eller en ogiltig månad. Då gäller "alla"
+ * i stället.
  */
 export function resolveFilter(data: AppData, saved: InitiativeFilter): InitiativeFilter {
   const sectionId = data.sections.some((section) => section.id === saved.sectionId) ? saved.sectionId : ALL_SECTIONS;
@@ -53,7 +57,8 @@ export function resolveFilter(data: AppData, saved: InitiativeFilter): Initiativ
     ? saved.ownerId
     : ALL_OWNERS;
   const tajmaClass = isTajmaClassFilter(saved.tajmaClass) ? saved.tajmaClass : ALL_TAJMA_CLASSES;
-  return { year: saved.year, sectionId, ownerId, tajmaClass };
+  const month = isMonthFilter(saved.month) ? saved.month : ALL_MONTHS;
+  return { year: saved.year, month, sectionId, ownerId, tajmaClass };
 }
 
 /** Åren i årsväljaren: alla år som förekommer på något initiativ samt innevarande och valt år, stigande. */

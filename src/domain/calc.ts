@@ -1,3 +1,4 @@
+import { ALL_MONTHS, isInPeriod, sumInPeriod, type MonthFilter } from './period';
 import {
   EXTERNAL_STAFF,
   EXTERNAL_STAFF_ID,
@@ -86,16 +87,21 @@ export interface InitiativeSummary {
 }
 
 /** Timmar och kostnad per person och månad för ett initiativ ett visst år. */
+/**
+ * Timmar och kostnader för ett initiativ ett år. Raderna och månadssummorna gäller alla tolv
+ * månader, medan totalerna bara gäller perioden (hela året eller en vald månad).
+ */
 export function summarizeInitiative(
   data: AppData,
   initiative: Initiative,
   year: number,
   measure: Measure = 'estimate',
+  period: MonthFilter = ALL_MONTHS,
 ): InitiativeSummary {
   const rows = linkedPeople(data, initiative).map((person): InitiativeRow => {
     const months = getMonthValues(data, initiative.id, person.id, year, measure);
     const rate = effectiveRate(person, data.settings);
-    const totalHours = sum(months);
+    const totalHours = sumInPeriod(months, period);
     return {
       person,
       lockReason: lockReason(data, initiative, person),
@@ -205,7 +211,9 @@ export function personCapacity(
   return { capacity, monthTotals, overallocated: monthTotals.map((total) => total > capacity) };
 }
 
-export const countOverallocatedMonths = (capacity: PersonCapacity) => capacity.overallocated.filter(Boolean).length;
+/** Antal överallokerade månader i perioden. */
+export const countOverallocatedMonths = (capacity: PersonCapacity, period: MonthFilter = ALL_MONTHS) =>
+  capacity.overallocated.filter((isOver, month) => isOver && isInPeriod(month, period)).length;
 
 // ---------------------------------------------------------------- Lagrade timmar (alla år)
 

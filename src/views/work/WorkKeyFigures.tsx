@@ -1,6 +1,7 @@
 import { KeyFigure } from '../../components/KeyFigure';
 import { countOverallocatedMonths, personCapacity, sum, summarizeInitiative } from '../../domain/calc';
 import { formatHours, formatSek } from '../../domain/format';
+import { periodLabel, type MonthFilter } from '../../domain/period';
 import {
   BUDGET_PART_DEFINITE,
   BUDGET_PART_LABEL,
@@ -21,29 +22,34 @@ interface Props {
   /** Personal kopplad till de visade initiativen. */
   people: Person[];
   year: number;
+  /** Hela året eller en vald månad; timmar, kostnader och överallokering avser perioden. */
+  period: MonthFilter;
   view: WorkView;
 }
 
-/** Nyckeltal för de initiativ som visas, anpassade efter vald vy. */
-export function WorkKeyFigures({ data, initiatives, people, year, view }: Props) {
+/**
+ * Nyckeltal för de initiativ som visas, anpassade efter vald vy och period. Budgeten avser alltid
+ * initiativens alla år och påverkas inte av vald månad.
+ */
+export function WorkKeyFigures({ data, initiatives, people, year, period, view }: Props) {
   const totals = (measure: Measure): Totals => {
-    const summaries = initiatives.map((initiative) => summarizeInitiative(data, initiative, year, measure));
+    const summaries = initiatives.map((initiative) => summarizeInitiative(data, initiative, year, measure, period));
     return {
       hours: sum(summaries.map((summary) => summary.totalHours)),
       cost: sum(summaries.map((summary) => summary.totalCost)),
     };
   };
   const overallocatedCount = (measure: Measure) =>
-    sum(people.map((person) => countOverallocatedMonths(personCapacity(data, person, year, measure))));
+    sum(people.map((person) => countOverallocatedMonths(personCapacity(data, person, year, measure), period)));
 
   return (
     <div className="stats">
       <KeyFigure className="card stat" label="Initiativ" value={String(initiatives.length)} />
       {view === 'compare' ? (
-        <CompareFigures year={year} totals={totals} />
+        <CompareFigures label={periodLabel(year, period)} totals={totals} />
       ) : (
         <MeasureFigures
-          year={year}
+          label={periodLabel(year, period)}
           measure={view}
           totals={totals(view)}
           overallocatedCount={overallocatedCount(view)}
@@ -67,18 +73,19 @@ const MEASURE_FIGURE_LABELS: Record<Measure, { hours: string; cost: string; over
 };
 
 interface MeasureFiguresProps {
-  year: number;
+  /** Perioden, t.ex. "2026" eller "mars 2026". */
+  label: string;
   measure: Measure;
   totals: Totals;
   overallocatedCount: number;
 }
 
-function MeasureFigures({ year, measure, totals, overallocatedCount }: MeasureFiguresProps) {
+function MeasureFigures({ label, measure, totals, overallocatedCount }: MeasureFiguresProps) {
   const labels = MEASURE_FIGURE_LABELS[measure];
   return (
     <>
-      <KeyFigure className="card stat" label={`${labels.hours} ${year}`} value={`${formatHours(totals.hours)} h`} />
-      <KeyFigure className="card stat" label={`${labels.cost} ${year}`} value={formatSek(totals.cost)} />
+      <KeyFigure className="card stat" label={`${labels.hours} ${label}`} value={`${formatHours(totals.hours)} h`} />
+      <KeyFigure className="card stat" label={`${labels.cost} ${label}`} value={formatSek(totals.cost)} />
       <KeyFigure
         className={overallocatedCount > 0 ? 'card stat alert' : 'card stat'}
         label={labels.overallocation}
@@ -89,27 +96,28 @@ function MeasureFigures({ year, measure, totals, overallocatedCount }: MeasureFi
 }
 
 interface CompareFiguresProps {
-  year: number;
+  /** Perioden, t.ex. "2026" eller "mars 2026". */
+  label: string;
   totals: (measure: Measure) => Totals;
 }
 
-function CompareFigures({ year, totals }: CompareFiguresProps) {
+function CompareFigures({ label, totals }: CompareFiguresProps) {
   const estimate = totals('estimate');
   const actual = totals('actual');
 
   return (
     <>
-      <KeyFigure className="card stat" label={`Estimat ${year}`} value={`${formatHours(estimate.hours)} h`} />
-      <KeyFigure className="card stat" label={`Utfall ${year}`} value={`${formatHours(actual.hours)} h`} />
+      <KeyFigure className="card stat" label={`Estimat ${label}`} value={`${formatHours(estimate.hours)} h`} />
+      <KeyFigure className="card stat" label={`Utfall ${label}`} value={`${formatHours(actual.hours)} h`} />
       <KeyFigure
         className="card stat"
-        label={`Prognos kostnad ${year}`}
+        label={`Prognos kostnad ${label}`}
         title="Estimerad kostnad"
         value={formatSek(estimate.cost)}
       />
       <KeyFigure
         className="card stat"
-        label={`Utfallskostnad ${year}`}
+        label={`Utfallskostnad ${label}`}
         title="Faktisk kostnad: rapporterade timmar × respektive persons timkostnad"
         value={formatSek(actual.cost)}
       />
