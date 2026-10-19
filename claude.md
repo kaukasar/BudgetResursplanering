@@ -217,13 +217,13 @@ Arbetsläget är huvudsidan där den faktiska planerade tiden matas in och analy
 
 ### 4.1 Filter & Navigering
 
-* **Månadsväljare:** Till vänster om årsväljaren. Valen är **Alla månader** (standard) och januari–december. Valet ändrar inte vilka initiativ som visas, utan vilken period summorna avser. När en månad är vald:
+* **Årsväljare:** Möjlighet att välja kalenderår (t.ex. 2026, 2027) för att filtrera fram relevanta initiativ för det valda året.
+* **Månadsväljare:** Till höger om årsväljaren: först väljs år, därefter månad. Valen är **Alla månader** (standard) och januari–december. Valet ändrar inte vilka initiativ som visas, utan vilken period summorna avser. När en månad är vald:
   * Nyckeltalen (timmar, kostnader och överallokerade personmånader) avser bara den månaden, och etiketten anger månaden, t.ex. "Planerade timmar mars 2026".
   * I initiativtabellerna visas fortfarande alla tolv månader, men siffrorna för övriga månader är gråa, även röd markering för överallokering och avvikelsepilar. De kan fortfarande ändras. Totalkolumnerna, summeringsraden och kostnaderna i tabellhuvudet (t.ex. "Prognos intern mars 2026") avser bara den valda månaden; i jämförelsevyn gäller det även estimat, utfall och avvikelse.
   * Kapacitetsöversikten visar övriga månader gråa. Totalkolumnen avser den valda månaden, kolumnen **Kapacitet/år** blir **Kapacitet/mån**, och en person markeras som överallokerad bara om den är det den valda månaden.
   * Budgeten (budgetrutorna i initiativen och nyckeltalen **Intern budget** och **Extern budget**) avser fortsatt initiativets alla år och påverkas inte.
   * Valet sparas mellan besök, och samma månad behålls när ett annat år väljs.
-* **Årsväljare:** Möjlighet att välja kalenderår (t.ex. 2026, 2027) för att filtrera fram relevanta initiativ för det valda året.
 * **Sektionsväljare:** Dropdown/väljare för att välja en sektion (eller alla sektioner). När en sektion är vald visas endast initiativ i sektionen, och produktägareväljaren visar endast sektionens produktägare.
 * **Produktägareväljare:** Dropdown/väljare för att välja en produktägare. När en produktägare är vald visas samtliga initiativ som tillhör denna produktägare under det valda året.
 * **Tajmaklassväljare:** Dropdown/väljare till höger om produktägareväljaren för att visa initiativ med en viss tajmaklass. Valen är **Alla tajmaklasser** (standard), IMM, Vidareutveckling, Drift och **Ingen tajmaklass** (initiativ där tajmaklassen är tom). Filtret kombineras med år, sektion och produktägare, och valet sparas mellan besök. Visas inga initiativ anger meddelandet även tajmaklassen, t.ex. "Det finns inga initiativ med tajmaklass Drift för 2026."

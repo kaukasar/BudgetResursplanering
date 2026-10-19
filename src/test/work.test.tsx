@@ -142,7 +142,7 @@ describe('arbetsläge', () => {
     renderApp();
 
     const filters = screen.getAllByRole('combobox').map((select) => select.getAttribute('aria-label'));
-    expect(filters.slice(0, 5)).toEqual(['Månad', 'År', 'Sektion', 'Produktägare', 'Tajmaklass']);
+    expect(filters.slice(0, 5)).toEqual(['År', 'Månad', 'Sektion', 'Produktägare', 'Tajmaklass']);
     const tajma = screen.getByRole('combobox', { name: 'Tajmaklass' });
     expect(
       within(tajma)
@@ -250,7 +250,7 @@ describe('nyckeltalen intern och extern budget', () => {
     expect(externalFigure()).toHaveTextContent('–');
   });
 
-  it('månadsfiltret till vänster om året: summorna avser vald månad och övriga månader blir gråa', async () => {
+  it('månadsfiltret till höger om året: summorna avser vald månad och övriga månader blir gråa', async () => {
     // Anna (650 kr/h): 200 h i januari (överallokerad) och 40 h i mars. Kalle (1 000 kr/h): 10 h i mars.
     let d = ops.setEstimate(seed(), 'portal', 'anna', YEAR, 0, 200);
     d = ops.setEstimate(d, 'portal', 'anna', YEAR, 2, 40);

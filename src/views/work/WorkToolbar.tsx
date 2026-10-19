@@ -20,7 +20,7 @@ interface Props {
   filter: InitiativeFilter;
 }
 
-/** Filter för månad, år, sektion, produktägare och tajmaklass samt val av vy (estimat, utfall, jämförelse). */
+/** Filter för år, månad, sektion, produktägare och tajmaklass samt val av vy (estimat, utfall, jämförelse). */
 export function WorkToolbar({ years, sections, owners, filter }: Props) {
   const { year, month, sectionId, ownerId, tajmaClass } = filter;
   const { setYear, setMonth, setSectionId, setOwnerId, setTajmaClass, view, setView } = useUiStore();
@@ -28,22 +28,6 @@ export function WorkToolbar({ years, sections, owners, filter }: Props) {
 
   return (
     <div className="toolbar">
-      <label className="field">
-        <span>Månad</span>
-        <select
-          className="select"
-          value={month ?? ''}
-          onChange={(e) => setMonth(e.target.value === '' ? ALL_MONTHS : Number(e.target.value))}
-          aria-label="Månad"
-        >
-          <option value="">Alla månader</option>
-          {MONTHS_LONG.map((name, index) => (
-            <option key={name} value={index}>
-              {name.charAt(0).toUpperCase() + name.slice(1)}
-            </option>
-          ))}
-        </select>
-      </label>
       <div className="field">
         <span>År</span>
         <div className="year-picker">
@@ -62,6 +46,22 @@ export function WorkToolbar({ years, sections, owners, filter }: Props) {
           </button>
         </div>
       </div>
+      <label className="field">
+        <span>Månad</span>
+        <select
+          className="select"
+          value={month ?? ''}
+          onChange={(e) => setMonth(e.target.value === '' ? ALL_MONTHS : Number(e.target.value))}
+          aria-label="Månad"
+        >
+          <option value="">Alla månader</option>
+          {MONTHS_LONG.map((name, index) => (
+            <option key={name} value={index}>
+              {name.charAt(0).toUpperCase() + name.slice(1)}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="field">
         <span>Sektion</span>
         <select
