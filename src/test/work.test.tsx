@@ -305,4 +305,14 @@ describe('nyckeltalen intern och extern budget', () => {
     expect(annaRow).toHaveTextContent('40 h50 h+10 h+25 %');
     expect(screen.getByText(`Utfall mars ${YEAR}`, { selector: '.stat .label' })).toBeInTheDocument();
   });
+
+  it('kapacitetsöversikten är dold som standard och visas med ett klick på rubriken', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    const capacity = document.querySelector('details.capacity')!;
+    expect(capacity).not.toHaveAttribute('open');
+
+    await user.click(within(capacity as HTMLElement).getByText(`Kapacitet ${YEAR}`));
+    expect(capacity).toHaveAttribute('open');
+  });
 });

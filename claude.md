@@ -287,6 +287,7 @@ Varje initiativ visas i form av en separat tabell. Layouten nedan gäller vyn **
 | Utfall | Initiativ, utfall (h), utfallskostnad, överallokerade personmånader (utfall), intern budget, extern budget | Rapporterat utfall |
 | Jämförelse | Initiativ, estimat (h), utfall (h), prognos kostnad (= estimerad kostnad), utfallskostnad (faktisk kostnad), intern budget, extern budget | Estimat |
 
+* Kapacitetsöversikten är dold som standard. Ett klick på rubriken (triangeln) visar den, och ett nytt klick döljer den igen.
 * Nyckeltalen visar ingen sammanlagd avvikelse mot estimat. Avvikelsen visas per person, månad och initiativ i jämförelsevyns tabeller (4.4).
 * **Intern budget** och **Extern budget** visas längst till höger i alla vyer, som två separata nyckeltal: summan av den interna respektive externa budgeten för de initiativ som visas (följer års-, sektions-, produktägar- och tajmaklassfiltret). Initiativ utan den delen av budgeten räknas inte med; ett tips anger hur många av de visade initiativen som har intern respektive extern budget. Saknar alla visade initiativ den delen visas "–".
 * Budgeten avser initiativets alla år och räknas med i sin helhet, till skillnad från övriga nyckeltal som avser valt år. Gäller något av de visade initiativen med den delen av budgeten flera år får nyckeltalet tillägget "(alla år)", t.ex. **Intern budget (alla år)**.

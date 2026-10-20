@@ -27,7 +27,8 @@ export function CapacityOverview({ data, people, year, period, measure }: Props)
   const overallocatedCount = sum(rows.map((row) => countOverallocatedMonths(row, period)));
 
   return (
-    <details className="card capacity" open>
+    // Dold som standard; ett klick på rubriken (triangeln) visar översikten.
+    <details className="card capacity">
       <summary>
         <h3>Kapacitet {year}</h3>
         <span className={overallocatedCount > 0 ? 'small over-text' : 'small muted'}>
