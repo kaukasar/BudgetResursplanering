@@ -148,7 +148,7 @@ describe('arbetsläge', () => {
       within(tajma)
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual(['Alla tajmaklasser', 'IMM', 'Vidareutveckling', 'Drift', 'Ingen tajmaklass']);
+    ).toEqual(['Alla tajmaklasser', 'IMM', 'Vidareutveckling', 'Drift', 'Förvaltning', 'Ingen tajmaklass']);
 
     const regions = () => screen.queryAllByRole('region').map((r) => r.getAttribute('aria-label'));
     await user.selectOptions(tajma, 'IMM');
@@ -164,6 +164,12 @@ describe('arbetsläge', () => {
     await user.selectOptions(tajma, 'Drift');
     expect(regions()).toEqual([]);
     expect(screen.getByText(`Det finns inga initiativ med tajmaklass Drift för ${YEAR}.`)).toBeInTheDocument();
+
+    // Förvaltning är Vidareutveckling och Drift tillsammans, inte en egen tajmaklass.
+    await user.selectOptions(tajma, 'Förvaltning');
+    expect(
+      screen.getByText(`Det finns inga initiativ i Förvaltning (Vidareutveckling och Drift) för ${YEAR}.`),
+    ).toBeInTheDocument();
   });
 
   it('filtrerar på produktägare och år', async () => {

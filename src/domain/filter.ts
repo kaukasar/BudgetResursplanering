@@ -8,11 +8,17 @@ export const ALL_OWNERS = '';
 export const ALL_TAJMA_CLASSES = '';
 /** Initiativ utan tajmaklass. */
 export const NO_TAJMA_CLASS = 'none';
+/**
+ * Förvaltning: initiativ med tajmaklass Vidareutveckling eller Drift. Det är bara ett val i filtret,
+ * inte en egen tajmaklass.
+ */
+export const MAINTENANCE = 'maintenance';
+export const MAINTENANCE_TAJMA_CLASSES: readonly TajmaClass[] = ['Vidareutveckling', 'Drift'];
 
-export type TajmaClassFilter = typeof ALL_TAJMA_CLASSES | typeof NO_TAJMA_CLASS | TajmaClass;
+export type TajmaClassFilter = typeof ALL_TAJMA_CLASSES | typeof NO_TAJMA_CLASS | typeof MAINTENANCE | TajmaClass;
 
 export const isTajmaClassFilter = (value: unknown): value is TajmaClassFilter =>
-  value === ALL_TAJMA_CLASSES || value === NO_TAJMA_CLASS || isTajmaClass(value);
+  value === ALL_TAJMA_CLASSES || value === NO_TAJMA_CLASS || value === MAINTENANCE || isTajmaClass(value);
 
 /** Arbetslägets filter. */
 export interface InitiativeFilter {
@@ -27,6 +33,8 @@ export interface InitiativeFilter {
 function matchesTajmaClass(initiative: Initiative, filter: TajmaClassFilter): boolean {
   if (filter === ALL_TAJMA_CLASSES) return true;
   if (filter === NO_TAJMA_CLASS) return !initiative.tajmaClass;
+  if (filter === MAINTENANCE)
+    return !!initiative.tajmaClass && MAINTENANCE_TAJMA_CLASSES.includes(initiative.tajmaClass);
   return initiative.tajmaClass === filter;
 }
 

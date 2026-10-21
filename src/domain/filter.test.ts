@@ -6,6 +6,7 @@ import {
   ALL_SECTIONS,
   ALL_TAJMA_CLASSES,
   filterInitiatives,
+  MAINTENANCE,
   NO_TAJMA_CLASS,
   resolveFilter,
   selectableYears,
@@ -63,6 +64,19 @@ describe('filtrering av initiativ', () => {
     expect(ids('Drift')).toEqual([]);
     expect(ids(NO_TAJMA_CLASS)).toEqual(['i2']);
     expect(ids('IMM', 2027)).toEqual([]); // Portal gäller inte 2027
+  });
+
+  it('Förvaltning visar initiativ med tajmaklass Vidareutveckling eller Drift', () => {
+    let data = domainFixture(); // Portal (i1) och App (i2)
+    data = ops.updateInitiative(data, 'i1', { tajmaClass: 'Drift' });
+    data = ops.updateInitiative(data, 'i2', { tajmaClass: 'Vidareutveckling' });
+    const ids = () => filterInitiatives(data, { ...ALL, tajmaClass: MAINTENANCE }).map((initiative) => initiative.id);
+    expect(ids()).toEqual(['i1', 'i2']);
+
+    data = ops.updateInitiative(data, 'i1', { tajmaClass: 'IMM' });
+    data = ops.updateInitiative(data, 'i2', { tajmaClass: null });
+    expect(ids()).toEqual([]);
+    expect(resolveFilter(data, { ...ALL, tajmaClass: MAINTENANCE }).tajmaClass).toBe(MAINTENANCE);
   });
 });
 

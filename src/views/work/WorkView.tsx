@@ -2,6 +2,7 @@ import { activePeople } from '../../domain/calc';
 import {
   ALL_TAJMA_CLASSES,
   filterInitiatives,
+  MAINTENANCE,
   NO_TAJMA_CLASS,
   ownersInSection,
   resolveFilter,
@@ -94,6 +95,7 @@ function emptyFilterText(data: AppData, filter: InitiativeFilter): string {
 function noInitiativesText(tajmaClass: TajmaClassFilter): string {
   if (tajmaClass === ALL_TAJMA_CLASSES) return 'inga initiativ';
   if (tajmaClass === NO_TAJMA_CLASS) return 'inga initiativ utan tajmaklass';
+  if (tajmaClass === MAINTENANCE) return 'inga initiativ i Förvaltning (Vidareutveckling och Drift)';
   return `inga initiativ med tajmaklass ${tajmaClass}`;
 }
 

@@ -2,6 +2,7 @@ import {
   ALL_OWNERS,
   ALL_SECTIONS,
   ALL_TAJMA_CLASSES,
+  MAINTENANCE,
   NO_TAJMA_CLASS,
   type InitiativeFilter,
   type TajmaClassFilter,
@@ -108,6 +109,9 @@ export function WorkToolbar({ years, sections, owners, filter }: Props) {
               {option}
             </option>
           ))}
+          <option value={MAINTENANCE} title="Vidareutveckling och Drift">
+            Förvaltning
+          </option>
           <option value={NO_TAJMA_CLASS}>Ingen tajmaklass</option>
         </select>
       </label>
